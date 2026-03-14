@@ -18,7 +18,19 @@
       "Bash(gh auth status)",
       "Bash(git init)",
       "Bash(git add .)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh repo create multifamily-plan --public --source=. --remote=origin --push)",
+      "Bash(git rm -r --cached **/__pycache__/)",
+      "Bash(git rm -r --cached bennys_buildings/__pycache__/)",
+      "Bash(git add .gitignore)",
+      "Bash(git push)",
+      "Bash(git branch -m master main)",
+      "Bash(git push origin main)",
+      "Bash(gh repo edit jorgezogaib/multifamily-plan --default-branch main)",
+      "Bash(git push origin --delete master)",
+      "Bash(git branch --unset-upstream)",
+      "Bash(git branch --set-upstream-to=origin/main main)",
+      "Bash(git add .claude/settings.local.json)"
     ]
   }
 }
