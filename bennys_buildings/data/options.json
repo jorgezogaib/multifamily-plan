@@ -1,0 +1,50 @@
+{
+  "cooking_types": [
+    "Cooking - Electric",
+    "Cooking - Natural Gas"
+  ],
+  "heating_types": [
+    "Heating - Electric",
+    "Heating - Heat Pump",
+    "Heating - Natural Gas"
+  ],
+  "water_heating_types": [
+    "Water Heating - Electric",
+    "Water Heating - Natural Gas"
+  ],
+  "bedroom_options": [
+    {
+      "display": "0 BR",
+      "fmr_key": "Efficiency"
+    },
+    {
+      "display": "1 BR",
+      "fmr_key": "One-Bedroom"
+    },
+    {
+      "display": "2 BR",
+      "fmr_key": "Two-Bedroom"
+    },
+    {
+      "display": "3 BR",
+      "fmr_key": "Three-Bedroom"
+    },
+    {
+      "display": "4 BR",
+      "fmr_key": "Four-Bedroom"
+    },
+    {
+      "display": "5 BR",
+      "fmr_key": "Five-Bedroom"
+    }
+  ],
+  "property_types": [
+    "Apartment (5+ Units)",
+    "Duplex/Townhouse/(5 Units)",
+    "Single Family"
+  ],
+  "yes_no": [
+    "Yes",
+    "No"
+  ]
+}

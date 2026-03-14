@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install openpyxl)",
+      "Bash(python -c \":*)",
+      "Bash(python:*)",
+      "Bash(pip install oletools)",
+      "WebFetch(domain:www.huduser.gov)",
+      "WebFetch(domain:tools.huduser.gov)",
+      "WebFetch(domain:catalog.data.gov)",
+      "WebFetch(domain:www.eia.gov)",
+      "WebFetch(domain:data.hud.gov)",
+      "WebFetch(domain:www.hud.gov)",
+      "Bash(pip install customtkinter requests)",
+      "Bash(pip install Pillow)",
+      "Bash(dir \"%USERPROFILE%\\\\Desktop\" /b)",
+      "Bash(dir \"%USERPROFILE%\\\\OneDrive\\\\Desktop\" /b)",
+      "Bash(gh auth status)",
+      "Bash(git init)",
+      "Bash(git add .)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
