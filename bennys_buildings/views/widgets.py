@@ -243,6 +243,193 @@ class DropdownField(ctk.CTkFrame):
         self.combobox.configure(state=state)
 
 
+class SearchableDropdown(ctk.CTkFrame):
+    """A labeled dropdown with a search/filter entry at the top."""
+
+    def __init__(self, parent, label_text: str, values: list[str],
+                 on_change: Optional[Callable] = None,
+                 width: int = 180, **kwargs):
+        super().__init__(parent, fg_color="transparent", **kwargs)
+
+        self._values: list[str] = list(values)
+        self._on_change = on_change
+        self._selected: str = ""
+        self._popup: Optional[ctk.CTkToplevel] = None
+
+        self.label = ctk.CTkLabel(
+            self,
+            text=label_text,
+            font=FONTS["label"],
+            text_color=COLORS["text_secondary"],
+            anchor="w",
+            width=100,
+        )
+        self.label.pack(side="left", padx=(0, 8))
+
+        # Entry + button container
+        self._entry_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._entry_frame.pack(side="left", fill="x", expand=True)
+
+        self._entry = ctk.CTkEntry(
+            self._entry_frame,
+            font=FONTS["input"],
+            fg_color=COLORS["bg_input"],
+            border_color=COLORS["border"],
+            text_color=COLORS["text_primary"],
+            placeholder_text="Type to search...",
+            corner_radius=6,
+        )
+        self._entry.pack(side="left", fill="x", expand=True)
+
+        self._btn = ctk.CTkButton(
+            self._entry_frame,
+            text="\u25bc",
+            width=28,
+            height=28,
+            font=FONTS["small"],
+            fg_color=COLORS["border"],
+            hover_color=COLORS["accent_teal"],
+            text_color=COLORS["text_primary"],
+            corner_radius=6,
+            command=self._toggle_popup,
+        )
+        self._btn.pack(side="left", padx=(2, 0))
+
+        self._entry.bind("<KeyRelease>", self._on_key)
+        self._entry.bind("<FocusIn>", lambda e: self._show_popup())
+        self._entry.bind("<Return>", self._on_enter)
+
+    def _on_key(self, event):
+        """Filter the popup list as user types."""
+        if self._popup and self._popup.winfo_exists():
+            self._populate_list(self._entry.get())
+
+    def _on_enter(self, event):
+        """Select the first match on Enter key."""
+        query = self._entry.get().strip().lower()
+        if not query:
+            return
+        for v in self._values:
+            if query in v.lower():
+                self._select(v)
+                return
+
+    def _toggle_popup(self):
+        if self._popup and self._popup.winfo_exists():
+            self._hide_popup()
+        else:
+            self._show_popup()
+
+    def _show_popup(self):
+        if self._popup and self._popup.winfo_exists():
+            return
+        if not self._values:
+            return
+
+        self._popup = ctk.CTkToplevel(self)
+        self._popup.overrideredirect(True)
+        self._popup.configure(fg_color=COLORS["bg_card"])
+        self._popup.attributes("-topmost", True)
+
+        # Position below the entry
+        self._entry.update_idletasks()
+        x = self._entry.winfo_rootx()
+        y = self._entry.winfo_rooty() + self._entry.winfo_height() + 2
+        w = self._entry.winfo_width() + 30
+
+        # Limit height to 250px
+        self._popup.geometry(f"{w}x250+{x}+{y}")
+
+        self._listbox = ctk.CTkScrollableFrame(
+            self._popup,
+            fg_color=COLORS["bg_card"],
+            scrollbar_button_color=COLORS["border"],
+        )
+        self._listbox.pack(fill="both", expand=True, padx=1, pady=1)
+
+        self._populate_list(self._entry.get())
+
+        # Close popup when clicking elsewhere
+        self._popup.bind("<FocusOut>", self._on_popup_focus_out)
+
+    def _on_popup_focus_out(self, event):
+        """Hide popup when focus leaves."""
+        if self._popup and self._popup.winfo_exists():
+            # Check if focus moved to a child of the popup
+            try:
+                focused = self._popup.focus_get()
+                if focused and str(focused).startswith(str(self._popup)):
+                    return
+            except (KeyError, ValueError):
+                pass
+            self._hide_popup()
+
+    def _hide_popup(self):
+        if self._popup and self._popup.winfo_exists():
+            self._popup.destroy()
+        self._popup = None
+
+    def _populate_list(self, query: str = ""):
+        """Fill the popup list, filtering by query."""
+        if not self._popup or not self._popup.winfo_exists():
+            return
+
+        for w in self._listbox.winfo_children():
+            w.destroy()
+
+        q = query.strip().lower()
+        filtered = [v for v in self._values if q in v.lower()] if q else self._values
+
+        for val in filtered:
+            btn = ctk.CTkButton(
+                self._listbox,
+                text=val,
+                font=FONTS["small"],
+                fg_color="transparent",
+                hover_color=COLORS["bg_card_alt"],
+                text_color=COLORS["text_primary"],
+                anchor="w",
+                height=26,
+                corner_radius=4,
+                command=lambda v=val: self._select(v),
+            )
+            btn.pack(fill="x", pady=1, padx=2)
+
+        if not filtered:
+            no_match = ctk.CTkLabel(
+                self._listbox,
+                text="No matches",
+                font=FONTS["small"],
+                text_color=COLORS["text_muted"],
+            )
+            no_match.pack(pady=8)
+
+    def _select(self, value: str):
+        """Handle selection of a value."""
+        self._selected = value
+        self._entry.delete(0, "end")
+        self._entry.insert(0, value)
+        self._hide_popup()
+        if self._on_change:
+            self._on_change(value)
+
+    def get(self) -> str:
+        return self._selected or self._entry.get()
+
+    def set(self, value: str):
+        self._selected = value
+        self._entry.delete(0, "end")
+        self._entry.insert(0, value)
+
+    def update_values(self, values: list[str]):
+        self._values = list(values)
+        if self._popup and self._popup.winfo_exists():
+            self._populate_list(self._entry.get())
+
+    def set_state(self, state: str):
+        self._entry.configure(state=state)
+
+
 class RadioField(ctk.CTkFrame):
     """A labeled group of radio buttons (horizontal or vertical)."""
 

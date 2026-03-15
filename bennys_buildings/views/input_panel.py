@@ -9,8 +9,8 @@ import customtkinter as ctk
 from typing import Optional, Callable
 
 from views.widgets import (
-    SectionFrame, InputField, DropdownField, RadioField, DisplayField,
-    SeparatorRow, COLORS, FONTS
+    SectionFrame, InputField, DropdownField, SearchableDropdown,
+    RadioField, DisplayField, SeparatorRow, COLORS, FONTS
 )
 
 
@@ -73,13 +73,13 @@ class InputPanel(ctk.CTkScrollableFrame):
         section = SectionFrame(self, title="PROPERTY")
         section.pack(fill="x", pady=(0, 8))
 
-        self.state_dd = DropdownField(
+        self.state_dd = SearchableDropdown(
             section.content, "State", [],
             on_change=self._trigger_state_change,
         )
         self.state_dd.pack(fill="x", pady=3)
 
-        self.county_dd = DropdownField(
+        self.county_dd = SearchableDropdown(
             section.content, "County", [],
             on_change=self._trigger_county_change,
         )
