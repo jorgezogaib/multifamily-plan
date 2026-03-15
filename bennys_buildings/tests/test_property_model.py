@@ -197,6 +197,28 @@ def test_expense_ratio():
         f"Expense Ratio: expected ~53.1%, got {model.expense_ratio * 100:.1f}%"
 
 
+def test_grm():
+    model = get_test_model()
+    # GRM = 249999 / (1047 * 12 * 4) = 249999 / 50256 ≈ 4.97
+    assert abs(model.grm - 4.97) < 0.05, \
+        f"GRM: expected ~4.97, got {model.grm:.2f}"
+
+
+def test_breakeven_occupancy():
+    model = get_test_model()
+    # BEO = (|total_expenses| + |debt_service|) / PGR
+    # ≈ (25347 + 14221) / 50256 ≈ 0.787
+    assert abs(model.breakeven_occupancy - 0.787) < 0.02, \
+        f"BEO: expected ~78.7%, got {model.breakeven_occupancy * 100:.1f}%"
+
+
+def test_price_per_bedroom():
+    model = get_test_model()
+    # Price/BR = 249999 / (2 * 4) = 249999 / 8 ≈ 31250
+    assert abs(model.price_per_bedroom - 31250) < 1, \
+        f"Price/BR: expected ~31250, got {model.price_per_bedroom:.2f}"
+
+
 if __name__ == "__main__":
     tests = [
         test_total_price,
@@ -217,6 +239,9 @@ if __name__ == "__main__":
         test_cashflow_margin,
         test_total_expenses,
         test_expense_ratio,
+        test_grm,
+        test_breakeven_occupancy,
+        test_price_per_bedroom,
     ]
 
     passed = 0

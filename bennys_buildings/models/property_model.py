@@ -188,6 +188,9 @@ class PropertyModel:
         self.cash_on_cash: float = 0.0
         self.cap_rate: float = 0.0
         self.dscr: float = 0.0
+        self.grm: float = 0.0
+        self.breakeven_occupancy: float = 0.0
+        self.price_per_bedroom: float = 0.0
 
     # --- Properties ---
 
@@ -239,6 +242,16 @@ class PropertyModel:
             num = display.split(" ")[0]
             return f"{num}_br"
         return "2_br"
+
+    def _get_bedroom_count(self) -> int:
+        """Extract numeric bedroom count from display string (e.g., '2 BR' -> 2)."""
+        display = self._inputs.num_bedrooms
+        if display and " " in display:
+            try:
+                return int(display.split(" ")[0])
+            except ValueError:
+                return 0
+        return 0
 
     def _get_fmr_key(self) -> str:
         """Get the FMR key for current bedroom selection."""
@@ -392,6 +405,29 @@ class PropertyModel:
             self.dscr = self.noi / abs(self.debt_service)
         else:
             self.dscr = 0.0
+
+        # 25. Gross Rent Multiplier = Price / Annual PGR
+        if self.potential_gross_rent > 0:
+            self.grm = self.total_price / self.potential_gross_rent
+        else:
+            self.grm = 0.0
+
+        # 26. Break-even Occupancy = (|Expenses| + |Debt Service|) / PGR
+        if self.potential_gross_rent > 0:
+            self.breakeven_occupancy = (
+                (abs(self.total_expenses) + abs(self.debt_service))
+                / self.potential_gross_rent
+            )
+        else:
+            self.breakeven_occupancy = 0.0
+
+        # 27. Price per Bedroom
+        br_count = self._get_bedroom_count()
+        total_bedrooms = br_count * inp.num_units
+        if total_bedrooms > 0:
+            self.price_per_bedroom = self.total_price / total_bedrooms
+        else:
+            self.price_per_bedroom = 0.0
 
         self._notify_listeners()
 

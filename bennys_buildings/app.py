@@ -22,7 +22,7 @@ class BennysApp(ctk.CTk):
         # ── Window setup ───────────────────────────────────────────
         self.title("Benny's Buildings — Multifamily Investment Analyzer")
         self.geometry("1280x860")
-        self.minsize(1100, 700)
+        self.minsize(1100, 650)
         self.configure(fg_color=COLORS["bg_dark"])
 
         # Dark mode

@@ -23,8 +23,8 @@ class Dashboard(ctk.CTkFrame):
         super().__init__(parent, fg_color=COLORS["bg_dark"], **kwargs)
 
         # Configure 2-column grid
-        self.columnconfigure(0, weight=4, minsize=480)  # Pro Forma
-        self.columnconfigure(1, weight=2, minsize=300)  # Inputs
+        self.columnconfigure(0, weight=5, minsize=560)  # Pro Forma (2 columns)
+        self.columnconfigure(1, weight=2, minsize=280)  # Inputs (tabbed)
         self.rowconfigure(0, weight=1)
 
         # ── Left Column — Pro Forma ─────────────────────────────────
