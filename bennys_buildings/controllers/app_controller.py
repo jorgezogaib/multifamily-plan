@@ -50,6 +50,7 @@ class AppController:
         self._states_loaded = False
         self._county_fips_map: dict[str, str] = {}  # county_name -> fips_code
         self._pending_county: Optional[str] = None  # Set during deal load
+        self._zip_driven: bool = False  # True when zip is driving state/county
 
         # Wire up the input panel callbacks
         ip = dashboard.input_panel
@@ -221,6 +222,9 @@ class AppController:
 
     def _on_state_changed(self, state_name: str):
         """Handle state dropdown change — fetch counties."""
+        # Manual state selection clears zip code
+        if not self._zip_driven:
+            self._dashboard.input_panel.zip_code.set("")
         self._set_status(f"Loading counties for {state_name}...")
 
         # Get state code
@@ -260,13 +264,21 @@ class AppController:
         self._county_fips_map = fips_map
         self._dashboard.input_panel.set_county_values(county_names)
 
-        # If loading a deal, auto-select the saved county and fetch FMR
-        if self._pending_county and self._pending_county in county_names:
-            county = self._pending_county
+        # If loading a deal or zip-driven, auto-select the county
+        if self._pending_county:
+            pending = self._pending_county
             self._pending_county = None
-            self._dashboard.input_panel.county_dd.set(county)
-            self._on_county_changed(county)
-            return
+            # Try exact match first, then fuzzy
+            if pending in county_names:
+                self._dashboard.input_panel.county_dd.set(pending)
+                self._on_county_changed(pending)
+                return
+            matched = self._match_county_name(pending)
+            if matched:
+                self._dashboard.input_panel.county_dd.set(matched)
+                self._on_county_changed(matched)
+                return
+            self._zip_driven = False
 
         if county_names:
             self._dashboard.input_panel.county_dd.set("")
@@ -275,6 +287,10 @@ class AppController:
 
     def _on_county_changed(self, county_name: str):
         """Handle county dropdown change — fetch FMR data."""
+        # Manual county selection clears zip code
+        if not self._zip_driven:
+            self._dashboard.input_panel.zip_code.set("")
+        self._zip_driven = False  # Reset after cascade completes
         fips_code = self._county_fips_map.get(county_name, "")
         if not fips_code:
             return
@@ -338,12 +354,68 @@ class AppController:
             pass  # Zip lookup is informational, don't show errors
 
     def _on_zip_loaded(self, info):
-        """Update status with zip info."""
+        """Auto-populate state/county from zip lookup, then update status."""
+        if not info.state:
+            return
+
+        self._set_status(
+            f"Zip: {info.zip_code} — {info.city}, {info.state} "
+            f"({info.county})"
+        )
+
+        ip = self._dashboard.input_panel
+        current_state = ip.state_dd.get()
+
+        # Match state name from zip to HUD state list
+        target_state = self._find_state_name(info.state)
+        if not target_state:
+            return
+
+        # Set flag so state/county changes don't clear the zip
+        self._zip_driven = True
+
+        # Set pending county for auto-selection after counties load
         if info.county:
-            self._set_status(
-                f"Zip: {info.zip_code} — {info.city}, {info.state} "
-                f"({info.county})"
-            )
+            self._pending_county = info.county
+
+        if current_state != target_state:
+            # Different state — select it (triggers county cascade)
+            ip.state_dd.set(target_state)
+            self._on_state_changed(target_state)
+        elif info.county:
+            # Same state, just need to match county
+            self._auto_select_county(info.county)
+
+    def _find_state_name(self, zip_state: str) -> str:
+        """Match a state name from zip lookup to the HUD states list."""
+        if not self._hud_api._states_cache:
+            return ""
+        # Try exact match first
+        for s in self._hud_api._states_cache:
+            if s.name.lower() == zip_state.lower():
+                return s.name
+        return ""
+
+    def _auto_select_county(self, county_name: str):
+        """Find and select a county by name (fuzzy match)."""
+        ip = self._dashboard.input_panel
+        matched = self._match_county_name(county_name)
+        if matched:
+            ip.county_dd.set(matched)
+            self._on_county_changed(matched)
+        else:
+            self._zip_driven = False
+
+    def _match_county_name(self, zip_county: str) -> str:
+        """Match a county name from zip lookup to the loaded county list."""
+        if not self._county_fips_map:
+            return ""
+        zip_lower = zip_county.lower().replace(" county", "").strip()
+        for county_name in self._county_fips_map:
+            hud_lower = county_name.lower().replace(" county", "").strip()
+            if hud_lower == zip_lower or zip_lower in hud_lower:
+                return county_name
+        return ""
 
     # ── Deal management ────────────────────────────────────────────
 
