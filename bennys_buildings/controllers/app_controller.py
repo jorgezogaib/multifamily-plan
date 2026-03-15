@@ -387,12 +387,16 @@ class AppController:
             self._auto_select_county(info.county)
 
     def _find_state_name(self, zip_state: str) -> str:
-        """Match a state name from zip lookup to the HUD states list."""
+        """Match a state name from zip lookup to the HUD states list.
+
+        The RapidAPI returns the 2-letter state code (e.g. 'LA'),
+        so we match on both code and full name.
+        """
         if not self._hud_api._states_cache:
             return ""
-        # Try exact match first
+        zs = zip_state.strip().upper()
         for s in self._hud_api._states_cache:
-            if s.name.lower() == zip_state.lower():
+            if s.code.upper() == zs or s.name.lower() == zs.lower():
                 return s.name
         return ""
 
