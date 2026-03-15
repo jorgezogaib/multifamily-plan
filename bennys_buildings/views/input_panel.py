@@ -34,7 +34,6 @@ class InputPanel(ctk.CTkScrollableFrame):
         self.on_ua_toggled: Optional[Callable] = None
 
         self._build_property_section()
-        self._build_rates_section()
         self._build_loan_section()
         self._build_rent_section()
         self._build_utility_section()
@@ -71,7 +70,7 @@ class InputPanel(ctk.CTkScrollableFrame):
     # ── Property Section ───────────────────────────────────────────
     def _build_property_section(self):
         section = SectionFrame(self, title="PROPERTY")
-        section.pack(fill="x", pady=(0, 8))
+        section.pack(fill="x", pady=(0, 6))
 
         self.state_dd = SearchableDropdown(
             section.content, "State", [],
@@ -126,38 +125,17 @@ class InputPanel(ctk.CTkScrollableFrame):
         )
         self.zip_code.pack(fill="x", pady=3)
 
-    # ── Rates Section ──────────────────────────────────────────────
-    def _build_rates_section(self):
-        section = SectionFrame(self, title="RATES")
-        section.pack(fill="x", pady=(0, 8))
-
-        self.insurance_rate = InputField(
-            section.content, "Insurance %",
-            placeholder="1.5",
-            on_change=self._trigger_input_change,
-            suffix="%",
-        )
-        self.insurance_rate.pack(fill="x", pady=3)
-
-        self.tax_rate = InputField(
-            section.content, "Tax %",
-            placeholder="1.0",
-            on_change=self._trigger_input_change,
-            suffix="%",
-        )
-        self.tax_rate.pack(fill="x", pady=3)
-
-    # ── Loan Section ───────────────────────────────────────────────
+    # ── Loan & Rates Section ─────────────────────────────────────────
     def _build_loan_section(self):
-        section = SectionFrame(self, title="LOAN")
-        section.pack(fill="x", pady=(0, 8))
+        section = SectionFrame(self, title="LOAN & RATES")
+        section.pack(fill="x", pady=(0, 6))
 
         self.loan_term = InputField(
             section.content, "Term (yr)",
             placeholder="30",
             on_change=self._trigger_input_change,
         )
-        self.loan_term.pack(fill="x", pady=3)
+        self.loan_term.pack(fill="x", pady=2)
 
         self.interest_rate = InputField(
             section.content, "Rate %",
@@ -165,7 +143,7 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.interest_rate.pack(fill="x", pady=3)
+        self.interest_rate.pack(fill="x", pady=2)
 
         self.down_pct = InputField(
             section.content, "Down %",
@@ -173,7 +151,7 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.down_pct.pack(fill="x", pady=3)
+        self.down_pct.pack(fill="x", pady=2)
 
         self.closing_pct = InputField(
             section.content, "Closing %",
@@ -181,39 +159,57 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.closing_pct.pack(fill="x", pady=3)
+        self.closing_pct.pack(fill="x", pady=2)
 
         self.reserve_months = InputField(
             section.content, "Reserve (mo)",
             placeholder="6",
             on_change=self._trigger_input_change,
         )
-        self.reserve_months.pack(fill="x", pady=3)
+        self.reserve_months.pack(fill="x", pady=2)
 
         self.rent_ready = InputField(
             section.content, "Rent Ready $",
             placeholder="0",
             on_change=self._trigger_input_change,
         )
-        self.rent_ready.pack(fill="x", pady=3)
+        self.rent_ready.pack(fill="x", pady=2)
 
-    # ── Rent Section ───────────────────────────────────────────────
+        SeparatorRow(section.content).pack(fill="x")
+
+        self.insurance_rate = InputField(
+            section.content, "Insurance %",
+            placeholder="1.5",
+            on_change=self._trigger_input_change,
+            suffix="%",
+        )
+        self.insurance_rate.pack(fill="x", pady=2)
+
+        self.tax_rate = InputField(
+            section.content, "Tax %",
+            placeholder="1.0",
+            on_change=self._trigger_input_change,
+            suffix="%",
+        )
+        self.tax_rate.pack(fill="x", pady=2)
+
+    # ── Rent & Expenses Section ─────────────────────────────────────
     def _build_rent_section(self):
-        section = SectionFrame(self, title="RENT")
-        section.pack(fill="x", pady=(0, 8))
+        section = SectionFrame(self, title="RENT & EXPENSES")
+        section.pack(fill="x", pady=(0, 6))
 
         self.fmr_rent_display = DisplayField(
             section.content, "FMR Rent",
             value_color=COLORS["accent_cyan"],
         )
-        self.fmr_rent_display.pack(fill="x", pady=3)
+        self.fmr_rent_display.pack(fill="x", pady=2)
 
         self.manual_rent = InputField(
             section.content, "Manual Rent",
             placeholder="Override FMR",
             on_change=self._trigger_input_change,
         )
-        self.manual_rent.pack(fill="x", pady=3)
+        self.manual_rent.pack(fill="x", pady=2)
 
         self.vacancy_rate = InputField(
             section.content, "Vacancy %",
@@ -221,7 +217,7 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.vacancy_rate.pack(fill="x", pady=3)
+        self.vacancy_rate.pack(fill="x", pady=2)
 
         self.ltl_rate = InputField(
             section.content, "LtL %",
@@ -229,18 +225,9 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.ltl_rate.pack(fill="x", pady=3)
+        self.ltl_rate.pack(fill="x", pady=2)
 
         SeparatorRow(section.content).pack(fill="x")
-
-        # Expense rates in this section for space efficiency
-        expense_label = ctk.CTkLabel(
-            section.content,
-            text="Expense Rates",
-            font=FONTS["small"],
-            text_color=COLORS["header"],
-        )
-        expense_label.pack(anchor="w", pady=(4, 2))
 
         self.maintenance_rate = InputField(
             section.content, "Maint %",
@@ -248,7 +235,7 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.maintenance_rate.pack(fill="x", pady=3)
+        self.maintenance_rate.pack(fill="x", pady=2)
 
         self.management_rate = InputField(
             section.content, "Mgmt %",
@@ -256,7 +243,7 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.management_rate.pack(fill="x", pady=3)
+        self.management_rate.pack(fill="x", pady=2)
 
         self.improvements_rate = InputField(
             section.content, "Improve %",
@@ -264,12 +251,12 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._trigger_input_change,
             suffix="%",
         )
-        self.improvements_rate.pack(fill="x", pady=3)
+        self.improvements_rate.pack(fill="x", pady=2)
 
     # ── Utility Section ────────────────────────────────────────────
     def _build_utility_section(self):
         section = SectionFrame(self, title="UTILITIES")
-        section.pack(fill="x", pady=(0, 8))
+        section.pack(fill="x", pady=(0, 6))
 
         self.use_utility_dd = RadioField(
             section.content, "Use UA?", ["Yes", "No"],
