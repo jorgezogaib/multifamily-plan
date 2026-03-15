@@ -84,6 +84,13 @@ class InputPanel(ctk.CTkScrollableFrame):
         )
         self.county_dd.pack(fill="x", pady=3)
 
+        self.zip_code = InputField(
+            section.content, "Zip Code",
+            placeholder="70816",
+            on_change=self._trigger_zip_change,
+        )
+        self.zip_code.pack(fill="x", pady=3)
+
         self.property_type_dd = RadioField(
             section.content, "Type", [],
             on_change=lambda v: self._trigger_input_change(),
@@ -117,13 +124,6 @@ class InputPanel(ctk.CTkScrollableFrame):
             on_change=self._on_manual_total_changed,
         )
         self.manual_total.pack(fill="x", pady=3)
-
-        self.zip_code = InputField(
-            section.content, "Zip Code",
-            placeholder="70816",
-            on_change=self._trigger_zip_change,
-        )
-        self.zip_code.pack(fill="x", pady=3)
 
     # ── Loan & Rates Section ─────────────────────────────────────────
     def _build_loan_section(self):

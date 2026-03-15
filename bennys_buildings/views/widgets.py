@@ -255,6 +255,7 @@ class SearchableDropdown(ctk.CTkFrame):
         self._on_change = on_change
         self._selected: str = ""
         self._popup: Optional[ctk.CTkToplevel] = None
+        self._bound_ids: list[tuple] = []  # (widget, event, bind_id)
 
         self.label = ctk.CTkLabel(
             self,
@@ -337,7 +338,6 @@ class SearchableDropdown(ctk.CTkFrame):
         y = self._entry.winfo_rooty() + self._entry.winfo_height() + 2
         w = self._entry.winfo_width() + 30
 
-        # Limit height to 250px
         self._popup.geometry(f"{w}x250+{x}+{y}")
 
         self._listbox = ctk.CTkScrollableFrame(
@@ -349,22 +349,70 @@ class SearchableDropdown(ctk.CTkFrame):
 
         self._populate_list(self._entry.get())
 
-        # Close popup when clicking elsewhere
-        self._popup.bind("<FocusOut>", self._on_popup_focus_out)
+        # Bind global click to dismiss popup when clicking outside
+        root = self.winfo_toplevel()
+        bid = root.bind("<Button-1>", self._on_root_click, add="+")
+        self._bound_ids.append((root, "<Button-1>", bid))
 
-    def _on_popup_focus_out(self, event):
-        """Hide popup when focus leaves."""
+        # Close on window move/resize/minimize
+        bid2 = root.bind("<Configure>", self._on_root_configure, add="+")
+        self._bound_ids.append((root, "<Configure>", bid2))
+
+        # Close on mouse scroll anywhere (parent scroll)
+        bid3 = root.bind("<MouseWheel>", self._on_root_scroll, add="+")
+        self._bound_ids.append((root, "<MouseWheel>", bid3))
+
+        # Close on Escape key
+        bid4 = self._entry.bind("<Escape>", lambda e: self._hide_popup(),
+                                add="+")
+        self._bound_ids.append((self._entry, "<Escape>", bid4))
+
+    def _on_root_click(self, event):
+        """Close popup if click is outside the dropdown and popup."""
+        if not self._popup or not self._popup.winfo_exists():
+            return
+        # Check if click landed inside the popup window
+        try:
+            px = self._popup.winfo_rootx()
+            py = self._popup.winfo_rooty()
+            pw = self._popup.winfo_width()
+            ph = self._popup.winfo_height()
+            # Also check the entry area
+            ex = self._entry.winfo_rootx()
+            ey = self._entry.winfo_rooty()
+            ew = self._entry_frame.winfo_width()
+            eh = self._entry.winfo_height()
+
+            abs_x = event.x_root
+            abs_y = event.y_root
+
+            in_popup = px <= abs_x <= px + pw and py <= abs_y <= py + ph
+            in_entry = ex <= abs_x <= ex + ew and ey <= abs_y <= ey + eh
+
+            if not in_popup and not in_entry:
+                self._hide_popup()
+        except Exception:
+            self._hide_popup()
+
+    def _on_root_configure(self, event):
+        """Close popup when the main window moves or resizes."""
         if self._popup and self._popup.winfo_exists():
-            # Check if focus moved to a child of the popup
-            try:
-                focused = self._popup.focus_get()
-                if focused and str(focused).startswith(str(self._popup)):
-                    return
-            except (KeyError, ValueError):
-                pass
+            self._hide_popup()
+
+    def _on_root_scroll(self, event):
+        """Close popup on any scroll event."""
+        if self._popup and self._popup.winfo_exists():
             self._hide_popup()
 
     def _hide_popup(self):
+        # Unbind all event handlers we added
+        for widget, event, bid in self._bound_ids:
+            try:
+                widget.unbind(event, bid)
+            except Exception:
+                pass
+        self._bound_ids.clear()
+
         if self._popup and self._popup.winfo_exists():
             self._popup.destroy()
         self._popup = None
