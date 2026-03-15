@@ -9,7 +9,7 @@ import customtkinter as ctk
 from typing import Optional, Callable
 
 from views.widgets import (
-    SectionFrame, InputField, DropdownField, DisplayField,
+    SectionFrame, InputField, DropdownField, RadioField, DisplayField,
     SeparatorRow, COLORS, FONTS
 )
 
@@ -31,6 +31,7 @@ class InputPanel(ctk.CTkScrollableFrame):
         self.on_county_changed: Optional[Callable] = None
         self.on_input_changed: Optional[Callable] = None
         self.on_zip_changed: Optional[Callable] = None
+        self.on_ua_toggled: Optional[Callable] = None
 
         self._build_property_section()
         self._build_rates_section()
@@ -55,6 +56,18 @@ class InputPanel(ctk.CTkScrollableFrame):
         if self.on_zip_changed:
             self.on_zip_changed()
 
+    def _on_price_per_unit_changed(self):
+        """When $/Unit gets a value, clear Total $."""
+        if self.price_per_unit.get().strip():
+            self.manual_total.set("")
+        self._trigger_input_change()
+
+    def _on_manual_total_changed(self):
+        """When Total $ gets a value, clear $/Unit."""
+        if self.manual_total.get().strip():
+            self.price_per_unit.set("")
+        self._trigger_input_change()
+
     # ── Property Section ───────────────────────────────────────────
     def _build_property_section(self):
         section = SectionFrame(self, title="PROPERTY")
@@ -72,9 +85,10 @@ class InputPanel(ctk.CTkScrollableFrame):
         )
         self.county_dd.pack(fill="x", pady=3)
 
-        self.property_type_dd = DropdownField(
+        self.property_type_dd = RadioField(
             section.content, "Type", [],
             on_change=lambda v: self._trigger_input_change(),
+            orientation="vertical",
         )
         self.property_type_dd.pack(fill="x", pady=3)
 
@@ -93,15 +107,15 @@ class InputPanel(ctk.CTkScrollableFrame):
 
         self.price_per_unit = InputField(
             section.content, "$ / Unit",
-            placeholder="62,500",
-            on_change=self._trigger_input_change,
+            placeholder="Leave blank if providing Total $",
+            on_change=self._on_price_per_unit_changed,
         )
         self.price_per_unit.pack(fill="x", pady=3)
 
         self.manual_total = InputField(
             section.content, "Total $ (opt)",
-            placeholder="Leave blank to calculate",
-            on_change=self._trigger_input_change,
+            placeholder="Leave blank if providing $ / Unit",
+            on_change=self._on_manual_total_changed,
         )
         self.manual_total.pack(fill="x", pady=3)
 
@@ -257,35 +271,55 @@ class InputPanel(ctk.CTkScrollableFrame):
         section = SectionFrame(self, title="UTILITIES")
         section.pack(fill="x", pady=(0, 8))
 
+        self.use_utility_dd = RadioField(
+            section.content, "Use UA?", ["Yes", "No"],
+            default="No",
+            on_change=self._on_ua_toggled,
+        )
+        self.use_utility_dd.pack(fill="x", pady=3)
+
+        # Container for utility detail fields — hidden when UA is No
+        self._ua_fields_frame = ctk.CTkFrame(
+            section.content, fg_color="transparent"
+        )
+
         self.has_gas_dd = DropdownField(
-            section.content, "Has Gas?", ["Yes", "No"],
+            self._ua_fields_frame, "Has Gas?", ["Yes", "No"],
             on_change=lambda v: self._trigger_input_change(),
         )
         self.has_gas_dd.pack(fill="x", pady=3)
 
         self.heating_dd = DropdownField(
-            section.content, "Heating", [],
+            self._ua_fields_frame, "Heating", [],
             on_change=lambda v: self._trigger_input_change(),
         )
         self.heating_dd.pack(fill="x", pady=3)
 
         self.cooking_dd = DropdownField(
-            section.content, "Cooking", [],
+            self._ua_fields_frame, "Cooking", [],
             on_change=lambda v: self._trigger_input_change(),
         )
         self.cooking_dd.pack(fill="x", pady=3)
 
         self.water_heating_dd = DropdownField(
-            section.content, "Water Htg", [],
+            self._ua_fields_frame, "Water Htg", [],
             on_change=lambda v: self._trigger_input_change(),
         )
         self.water_heating_dd.pack(fill="x", pady=3)
 
-        self.use_utility_dd = DropdownField(
-            section.content, "Use UA?", ["Yes", "No"],
-            on_change=lambda v: self._trigger_input_change(),
-        )
-        self.use_utility_dd.pack(fill="x", pady=3)
+        # Start hidden (default is No)
+        # _ua_fields_frame is NOT packed initially
+
+    def _on_ua_toggled(self, value: str):
+        """Show/hide utility detail fields based on Use UA toggle."""
+        if value == "Yes":
+            self._ua_fields_frame.pack(fill="x", after=self.use_utility_dd)
+        else:
+            self._ua_fields_frame.pack_forget()
+        self._trigger_input_change()
+        # Notify dashboard to show/hide utility breakdown panel
+        if hasattr(self, 'on_ua_toggled') and self.on_ua_toggled:
+            self.on_ua_toggled(value)
 
     # ── Bulk set/get methods ───────────────────────────────────────
 
@@ -394,3 +428,5 @@ class InputPanel(ctk.CTkScrollableFrame):
         self.cooking_dd.set(inputs.cooking)
         self.water_heating_dd.set(inputs.water_heating)
         self.use_utility_dd.set(inputs.use_utility_allowance)
+        # Sync UA field visibility
+        self._on_ua_toggled(inputs.use_utility_allowance)

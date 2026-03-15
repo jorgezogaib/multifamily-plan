@@ -28,7 +28,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Cooking - Electric",
     "0_br": 4,
     "1_br": 4,
@@ -84,7 +84,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Heating - Heat Pump",
     "0_br": 8,
     "1_br": 9,
@@ -168,7 +168,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Water Heating - Electric",
     "0_br": 10,
     "1_br": 12,
@@ -182,7 +182,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "All Other Electric",
     "0_br": 18,
     "1_br": 20,
@@ -224,7 +224,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Electric Air Conditioning",
     "0_br": 9,
     "1_br": 11,
@@ -238,7 +238,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Fixed - Gas",
     "0_br": 13,
     "1_br": 13,
@@ -266,7 +266,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Heating - Electric",
     "0_br": 17,
     "1_br": 19,
@@ -294,7 +294,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Sewer",
     "0_br": 21,
     "1_br": 22,
@@ -308,7 +308,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Trash Collection",
     "0_br": 10,
     "1_br": 11,
@@ -322,7 +322,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Water",
     "0_br": 28,
     "1_br": 30,
@@ -378,7 +378,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Cooking - Natural Gas",
     "0_br": 3,
     "1_br": 3,
@@ -448,7 +448,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Heating - Natural Gas",
     "0_br": 33,
     "1_br": 36,
@@ -518,7 +518,7 @@
     "9_br": 0
   },
   {
-    "property_type": "Duplex/Townhouse/(5 Units)",
+    "property_type": "Duplex/Townhouse (<5 Units)",
     "utility_service": "Water Heating - Natural Gas",
     "0_br": 7,
     "1_br": 9,

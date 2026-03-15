@@ -243,6 +243,78 @@ class DropdownField(ctk.CTkFrame):
         self.combobox.configure(state=state)
 
 
+class RadioField(ctk.CTkFrame):
+    """A labeled group of radio buttons (horizontal or vertical)."""
+
+    def __init__(self, parent, label_text: str, values: list[str],
+                 default: str = "", on_change: Optional[Callable] = None,
+                 orientation: str = "horizontal", **kwargs):
+        super().__init__(parent, fg_color="transparent", **kwargs)
+
+        self._orientation = orientation
+        self._on_change = on_change
+
+        if label_text:
+            self.label = ctk.CTkLabel(
+                self,
+                text=label_text,
+                font=FONTS["label"],
+                text_color=COLORS["text_secondary"],
+                anchor="w",
+                width=100,
+            )
+            if orientation == "vertical":
+                self.label.pack(anchor="w", pady=(0, 4))
+            else:
+                self.label.pack(side="left", padx=(0, 8))
+
+        self._var = ctk.StringVar(value=default or (values[0] if values else ""))
+        self._buttons: list[ctk.CTkRadioButton] = []
+
+        self._btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        if orientation == "vertical":
+            self._btn_frame.pack(fill="x", padx=(16, 0))
+        else:
+            self._btn_frame.pack(side="left", fill="x", expand=True)
+
+        self._build_buttons(values)
+
+    def _build_buttons(self, values: list[str]):
+        for btn in self._buttons:
+            btn.destroy()
+        self._buttons.clear()
+
+        on_change = self._on_change
+        for val in values:
+            rb = ctk.CTkRadioButton(
+                self._btn_frame,
+                text=val,
+                variable=self._var,
+                value=val,
+                font=FONTS["small"],
+                text_color=COLORS["text_primary"],
+                fg_color=COLORS["accent_teal"],
+                border_color=COLORS["border"],
+                hover_color=COLORS["accent_teal"],
+                command=lambda: on_change(self._var.get()) if on_change else None,
+            )
+            if self._orientation == "vertical":
+                rb.pack(anchor="w", pady=2)
+            else:
+                rb.pack(side="left", padx=(0, 10))
+            self._buttons.append(rb)
+
+    def get(self) -> str:
+        return self._var.get()
+
+    def set(self, value: str):
+        self._var.set(value)
+
+    def update_values(self, values: list[str]):
+        """Rebuild radio buttons with new values."""
+        self._build_buttons(values)
+
+
 class DisplayField(ctk.CTkFrame):
     """A read-only labeled display (for FMR rent, utility allowance, etc.)."""
 

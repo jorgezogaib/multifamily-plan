@@ -82,7 +82,7 @@ class DealInputs:
     # Property
     state: str = ""
     county: str = ""
-    property_type: str = "Duplex/Townhouse/(5 Units)"
+    property_type: str = "Duplex/Townhouse (<5 Units)"
     num_bedrooms: str = "2 BR"
     num_units: int = 4
     price_per_unit: float = 0.0

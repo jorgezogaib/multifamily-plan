@@ -2,7 +2,7 @@
 
 Test case uses the current workbook state:
     State: Mississippi, County: Forrest County
-    Property Type: Duplex/Townhouse/(5 Units)
+    Property Type: Duplex/Townhouse (<5 Units)
     4 units @ $62,499.75/unit
     6.5% interest, 30yr, 25% down, 2% closing, 6 months reserve
     2 BR, FMR Rent: $1,047
@@ -39,7 +39,7 @@ def get_test_model() -> PropertyModel:
     model._inputs = DealInputs(
         state="Mississippi",
         county="Forrest County",
-        property_type="Duplex/Townhouse/(5 Units)",
+        property_type="Duplex/Townhouse (<5 Units)",
         num_bedrooms="2 BR",
         num_units=4,
         price_per_unit=62499.75,

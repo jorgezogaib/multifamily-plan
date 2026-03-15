@@ -57,6 +57,7 @@ class AppController:
         ip.on_county_changed = self._on_county_changed
         ip.on_input_changed = self._on_input_changed
         ip.on_zip_changed = self._on_zip_changed
+        ip.on_ua_toggled = self._on_ua_toggled
 
         # Populate dropdowns from options
         ip.populate_dropdowns(self._options)
@@ -188,6 +189,10 @@ class AppController:
     def _on_model_updated(self):
         """Called after the model recalculates."""
         self._dashboard.refresh_from_model(self._model)
+
+    def _on_ua_toggled(self, value: str):
+        """Show/hide the Utility Breakdown panel when Use UA changes."""
+        self._dashboard.show_utility_panel(value == "Yes")
 
     # ── State / County / FMR cascading ─────────────────────────────
 

@@ -39,7 +39,8 @@ class Dashboard(ctk.CTkFrame):
         self.income_panel.pack(fill="x", pady=(0, 8))
 
         self.utility_panel = UtilityDetailPanel(left_frame)
-        self.utility_panel.pack(fill="x")
+        # Hidden by default — shown when Use UA? = Yes
+        # (pack is called by show_utility_panel)
 
         # ── Middle Column ─────────────────────────────────────────
         mid_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -56,6 +57,13 @@ class Dashboard(ctk.CTkFrame):
         self.input_panel.grid(
             row=0, column=2, sticky="nsew", padx=(6, 12), pady=12
         )
+
+    def show_utility_panel(self, show: bool):
+        """Show or hide the Utility Breakdown panel."""
+        if show:
+            self.utility_panel.pack(fill="x")
+        else:
+            self.utility_panel.pack_forget()
 
     def refresh_from_model(self, model):
         """Update all display panels from the model."""

@@ -40,7 +40,7 @@
   ],
   "property_types": [
     "Apartment (5+ Units)",
-    "Duplex/Townhouse/(5 Units)",
+    "Duplex/Townhouse (<5 Units)",
     "Single Family"
   ],
   "yes_no": [
