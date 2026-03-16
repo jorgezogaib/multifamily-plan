@@ -29,13 +29,13 @@ COLORS = {
 }
 
 FONTS = {
-    "header": ("Segoe UI", 14, "bold"),
-    "subheader": ("Segoe UI", 12, "bold"),
-    "label": ("Segoe UI", 12),
-    "value": ("Segoe UI Semibold", 13),
-    "value_large": ("Segoe UI Semibold", 15),
-    "input": ("Segoe UI", 12),
-    "small": ("Segoe UI", 10),
+    "header": ("Segoe UI", 15, "bold"),
+    "subheader": ("Segoe UI", 13, "bold"),
+    "label": ("Segoe UI", 13),
+    "value": ("Segoe UI Semibold", 14),
+    "value_large": ("Segoe UI Semibold", 16),
+    "input": ("Segoe UI", 13),
+    "small": ("Segoe UI", 11),
     "title": ("Segoe UI", 18, "bold"),
 }
 
@@ -69,6 +69,87 @@ class SectionFrame(ctk.CTkFrame):
 
         self.content = ctk.CTkFrame(self, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+
+
+class CollapsibleSection(ctk.CTkFrame):
+    """A collapsible section with a clickable header bar.
+
+    Clicking the header toggles the content frame visibility.
+    An accordion controller can call expand()/collapse() to enforce
+    single-open behavior via the on_toggle callback.
+    """
+
+    def __init__(self, parent, title: str,
+                 on_toggle: Optional[Callable] = None, **kwargs):
+        super().__init__(
+            parent,
+            fg_color=COLORS["bg_card"],
+            corner_radius=10,
+            border_width=1,
+            border_color=COLORS["border"],
+            **kwargs,
+        )
+
+        self._is_expanded = False
+        self._on_toggle = on_toggle  # on_toggle(section, is_expanded)
+
+        # ── Header bar (clickable) ──
+        self._header = ctk.CTkFrame(
+            self, fg_color=COLORS["bg_card_alt"],
+            corner_radius=8, height=38,
+        )
+        self._header.pack(fill="x", padx=4, pady=4)
+        self._header.pack_propagate(False)
+
+        self._indicator = ctk.CTkLabel(
+            self._header, text="\u25b6",
+            font=("Segoe UI", 10),
+            text_color=COLORS["accent_cyan"],
+            width=18,
+        )
+        self._indicator.pack(side="left", padx=(8, 2))
+
+        self._title_label = ctk.CTkLabel(
+            self._header, text=title,
+            font=FONTS["subheader"],
+            text_color=COLORS["header"],
+            anchor="w",
+        )
+        self._title_label.pack(side="left", fill="x", expand=True)
+
+        for w in (self._header, self._indicator, self._title_label):
+            w.bind("<Button-1>", self._on_header_click)
+
+        # ── Content frame (hidden until expanded) ──
+        self.content = ctk.CTkFrame(self, fg_color="transparent")
+
+    def _on_header_click(self, event=None):
+        if self._is_expanded:
+            self.collapse()
+        else:
+            self.expand()
+        if self._on_toggle:
+            self._on_toggle(self, self._is_expanded)
+
+    def expand(self):
+        if self._is_expanded:
+            return
+        self._is_expanded = True
+        self._indicator.configure(text="\u25bc")
+        self._title_label.configure(text_color=COLORS["accent_cyan"])
+        self.content.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+
+    def collapse(self):
+        if not self._is_expanded:
+            return
+        self._is_expanded = False
+        self._indicator.configure(text="\u25b6")
+        self._title_label.configure(text_color=COLORS["header"])
+        self.content.pack_forget()
+
+    @property
+    def is_expanded(self) -> bool:
+        return self._is_expanded
 
 
 class MetricRow(ctk.CTkFrame):

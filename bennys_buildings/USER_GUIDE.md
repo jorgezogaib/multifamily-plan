@@ -68,101 +68,66 @@ The app still works without API access — you just can't auto-populate states/c
 
 ## 3. UI Walkthrough
 
-The app window has four major areas:
+The app window has three major areas:
 
 ### Title Bar (Top)
 - **App name:** "Benny's Buildings" in teal
 - **Deal name:** Shows "Untitled" or the name of the currently loaded deal
 - **Buttons (right side):** New, Save, Save As, Load, Settings
 
-### Left Column — Purchase & Income
+### Left Column — Investment Pro Forma
 
-#### PURCHASE & CAPITAL Section
-Shows the total investment required to acquire the property:
+A professional financial statement laid out in 3 columns with auto-scaling fonts that adjust to fill the available space. The panel hides its scrollbar when everything fits on screen.
 
-| Field | What It Shows |
-|-------|--------------|
-| **Total Price** | Purchase price of the entire property (calculated from $/unit x units, or manual override) |
-| **Closing Costs** | One-time costs to close the deal (default 2% of price) |
-| **Down Payment** | Cash you put down (default 25% of price) |
-| **Reserve Account** | Emergency fund based on debt service + insurance + taxes (default 6 months) |
-| **Cost to Rent Ready** | Renovation/repair costs before renting (manual entry) |
-| **Total Capital Required** | Sum of all the above — your total cash needed |
-| **Loan Term** | Length of the mortgage (default 30 years) |
-| **Interest Rate** | Mortgage interest rate (default 6.5%) |
-| **Total Leverage** | The loan amount (Total Price minus Down Payment) |
+#### Column 1: Investment Summary, Financing, Capital Requirements
 
-#### INCOME Section
-Shows the rental revenue:
+| Section | Fields |
+|---------|--------|
+| **Investment Summary** | Acquisition Price, property info, location |
+| **Financing** | Loan Amount, Term/Rate, Annual Debt Service (monthly shown below) |
+| **Capital Requirements** | Down Payment, Closing Costs, Reserve Account, Cost to Rent Ready → **Total Capital Required** |
 
-| Field | What It Shows |
-|-------|--------------|
-| **Pot. Gross Rent** | Maximum annual rent if every unit is occupied at full price all year |
-| **Vacancy** | Expected lost rent from vacant units (default 5% of gross rent, shown negative) |
-| **Loss to Lease** | Revenue lost because current rents are below market (default 0%) |
-| **Eff. Gross Rent** | Actual expected annual rental income after vacancy and loss to lease |
+#### Column 2: Operating Statement
 
-#### UTILITY BREAKDOWN Section (conditional)
-Only visible when "Use UA?" is set to "Yes" in the input panel. Shows the monthly utility allowance broken down by service (electric, heating, water, sewer, etc.).
+| Section | Fields |
+|---------|--------|
+| **Revenue** | Potential Gross Rent, Less: Vacancy, Less: Loss to Lease → **Effective Gross Revenue** |
+| **Operating Expenses** | Maintenance, Management, Annual Improvements, Utility Allowance, Insurance, Property Tax → **Total Expenses** (with Expense Ratio) |
+| **Bottom line** | **NET OPERATING INCOME** |
 
-### Middle Column — Returns & Expenses
+#### Column 3: Investment Metrics & Cash Flow
 
-#### RETURNS Section
-The most important section — shows whether the deal makes money:
-
-| Field | What It Shows | Good Target |
-|-------|--------------|-------------|
-| **Net Operating Income (NOI)** | Annual income minus expenses, before debt payments | Higher is better |
-| **Debt Service** | Annual mortgage payments (shown negative) | — |
-| **Annual Cashflow** | Money left after all expenses AND mortgage payments | Positive = profitable |
-| **Monthly Cashflow** | Annual cashflow divided by 12 | Positive = profitable |
-| **Cashflow Margin** | What percentage of rent becomes profit | >10% is decent |
-| **Cash on Cash** | Annual cashflow as a % of your total cash invested | >8% is decent, >10% is good |
-| **Cap Rate** | NOI as a % of purchase price (ignores financing) | >7% typically attractive |
-| **DSCR** | How many times NOI covers debt payments | >1.25 is safe, <1.0 means losing money |
+| Section | Fields | Good Target |
+|---------|--------|-------------|
+| **Investment Metrics** | Cap Rate, Cash on Cash Return, DSCR, Cash Flow Margin, Gross Rent Multiplier, Break-even Occupancy, Price/Bedroom | Varies (see color coding) |
+| **Cash Flow Analysis** | Net Operating Income, Less: Debt Service → Monthly Cash Flow → **Annual Cash Flow** | Positive = profitable |
 
 **Color coding:**
 - **Green** = positive/strong values
 - **Red** = negative/weak values
 - **Orange** = moderate or informational
 
-#### EXPENSES Section
-Annual operating costs:
+### Right Column — Inputs (Accordion)
 
-| Field | What It Shows |
-|-------|--------------|
-| **Maintenance** | Ongoing repairs and upkeep (default 15% of effective rent) |
-| **Management** | Property management fee (default 10% of effective rent) |
-| **Annual Improvements** | Capital improvements budget (default 15% of effective rent) |
-| **Utility Allowance** | Tenant utility costs covered by landlord (only if enabled) |
-| **Insurance** | Property insurance (default 1.5% of purchase price) |
-| **Taxes** | Property taxes (default 1.0% of purchase price) |
-| **Total Expenses** | Sum of all expenses (shown negative) |
-| **Expense Ratio** | What percentage of rent goes to expenses |
+All user inputs organized in 3 collapsible sections. Only one section is open at a time — clicking a section header opens it and collapses the others. The panel scrolls vertically if needed.
 
-### Right Column — Inputs (Scrollable)
-
-This is where you enter all the property details. It scrolls vertically and is organized into 5 sections:
-
-#### PROPERTY Section
+#### ▼ Property Section
 | Field | How to Use |
 |-------|-----------|
-| **State** | Select from dropdown — triggers county list fetch from HUD API |
-| **County** | Select from dropdown (populated after state selection) — triggers FMR fetch |
-| **Type** | Property type: Apartment (5+), Duplex/Townhouse/(5 Units), Single Family |
-| **Bedrooms** | Number of bedrooms per unit (0 BR through 5 BR) — affects FMR rent lookup |
+| **State** | Searchable dropdown — triggers county list fetch from HUD API |
+| **County** | Searchable dropdown (populated after state selection) — triggers FMR fetch |
+| **Zip Code** | Property zip code — fetches location info from RapidAPI |
+| **Type** | Radio buttons: Apartment (5+), Duplex/Townhouse (<5 Units), Single Family |
+| **Bedrooms** | Dropdown: 0 BR through 5 BR — affects FMR rent lookup |
 | **# Units** | Total number of rental units in the property |
 | **$ / Unit** | Purchase price per unit |
 | **Total $ (opt)** | Optional: enter a total price directly (overrides $/unit calculation) |
-| **Zip Code** | Property zip code — fetches location info from RapidAPI |
+| **Rent Ready $** | Renovation/repair costs before renting (default 0) |
 
-#### RATES Section
-| Field | Default | What It Controls |
-|-------|---------|-----------------|
-| **Insurance %** | 1.5 | Annual insurance as a percentage of purchase price |
-| **Tax %** | 1.0 | Annual property tax as a percentage of purchase price |
+#### ▶ Financials Section (collapsed by default)
+Organized into 3 sub-groups:
 
-#### LOAN Section
+**LOAN**
 | Field | Default | What It Controls |
 |-------|---------|-----------------|
 | **Term (yr)** | 30 | Mortgage term in years |
@@ -170,27 +135,32 @@ This is where you enter all the property details. It scrolls vertically and is o
 | **Down %** | 25 | Down payment as a percentage of purchase price |
 | **Closing %** | 2 | Closing costs as a percentage of purchase price |
 | **Reserve (mo)** | 6 | Number of months of expenses to keep in reserve |
-| **Rent Ready $** | 0 | Renovation costs before renting |
 
-#### RENT Section
+**REVENUE**
 | Field | What It Does |
 |-------|-------------|
 | **FMR Rent** | Read-only display — the Fair Market Rent fetched from HUD for the selected county and bedroom count |
 | **Manual Rent** | If entered, overrides the FMR rent with your own monthly rent estimate |
 | **Vacancy %** | Expected vacancy rate (default 5%) |
 | **LtL %** | Loss to Lease rate (default 0%) |
-| **Maint %** | Maintenance rate as % of effective rent (default 15%) |
-| **Mgmt %** | Management fee as % of effective rent (default 10%) |
-| **Improve %** | Annual improvements as % of effective rent (default 15%) |
 
-#### UTILITIES Section
+**EXPENSES**
+| Field | Default | What It Controls |
+|-------|---------|-----------------|
+| **Maint %** | 15 | Maintenance rate as % of effective rent |
+| **Mgmt %** | 10 | Management fee as % of effective rent |
+| **Improve %** | 15 | Annual improvements as % of effective rent |
+| **Insurance %** | 1.5 | Annual insurance as % of purchase price |
+| **Tax %** | 1.0 | Annual property tax as % of purchase price |
+
+#### ▶ Utilities Section (collapsed by default)
 | Field | Options | What It Controls |
 |-------|---------|-----------------|
-| **Has Gas?** | Yes / No | Whether the property has gas service |
-| **Heating** | Electric / Heat Pump / Natural Gas | Heating system type |
-| **Cooking** | Electric / Natural Gas | Cooking appliance fuel type |
-| **Water Htg** | Electric / Natural Gas | Water heater fuel type |
 | **Use UA?** | Yes / No | Whether to include utility allowance in expense calculations |
+| **Has Gas?** | Yes / No | Whether the property has gas service (shown when UA = Yes) |
+| **Heating** | Electric / Heat Pump / Natural Gas | Heating system type (shown when UA = Yes) |
+| **Cooking** | Electric / Natural Gas | Cooking appliance fuel type (shown when UA = Yes) |
+| **Water Htg** | Electric / Natural Gas | Water heater fuel type (shown when UA = Yes) |
 
 ### Status Bar (Bottom)
 Shows current status: "Ready", loading messages during API calls, or the current county/FMR info after data loads.
@@ -668,12 +638,8 @@ CustomTkinter may not support your display settings. Try resizing the window or 
 main.py ──→ BennysApp (app.py)
               ├── ConfigService (services/config_service.py)
               ├── Dashboard (views/dashboard.py)
-              │     ├── PurchasePanel
-              │     ├── IncomePanel
-              │     ├── ExpensePanel
-              │     ├── ReturnsPanel
-              │     ├── UtilityDetailPanel
-              │     └── InputPanel
+              │     ├── ProFormaPanel (3-column auto-scaling financial statement)
+              │     └── InputPanel (accordion with 3 collapsible sections)
               └── AppController (controllers/app_controller.py)
                     ├── PropertyModel (models/property_model.py)
                     ├── DealManager (models/deal_manager.py)
@@ -697,14 +663,13 @@ else:
     self.grm = 0.0
 ```
 
-**Step 2:** Add a display row to `views/returns_panel.py`:
+**Step 2:** Add a display row to `views/proforma_panel.py`:
 ```python
-# In __init__:
-self.grm = MetricRow(self.content, "Gross Rent Mult.", value_color=COLORS["accent_orange"])
-self.grm.pack(fill="x", pady=2)
+# In _build_layout(), add a metric line in the appropriate column:
+self._add_metric_line("grm", "Gross Rent Mult.", R)
 
 # In update_from_model():
-self.grm.set_value(format_ratio(model.grm))
+self._set("grm", f"{format_ratio(model.grm)}x", COLORS["accent_orange"])
 ```
 
 **Step 3:** Add a test in `tests/test_property_model.py`:
@@ -726,8 +691,9 @@ property_age: int = 0
 
 **Step 2:** Add the widget in `views/input_panel.py` (in the Property section):
 ```python
-self.property_age = InputField(section.content, "Age (yr)", placeholder="0", on_change=self._trigger_input_change)
-self.property_age.pack(fill="x", pady=3)
+# In _build_property_section():
+self.property_age = InputField(container, "Age (yr)", placeholder="0", on_change=self._trigger_input_change)
+self.property_age.pack(fill="x", pady=3, padx=12)
 ```
 
 **Step 3:** Add to `get_all_inputs()` and `set_all_inputs()` in InputPanel.
@@ -755,17 +721,19 @@ class NewPanel(SectionFrame):
         self.some_metric.set_value(f"${model.some_value:,.0f}")
 ```
 
-**Step 2:** Import and add to `views/dashboard.py` in the appropriate column:
+**Step 2:** Import and add to `views/dashboard.py`:
 ```python
 from views.new_panel import NewPanel
 
-# In __init__, in the desired column frame:
-self.new_panel = NewPanel(left_frame)
-self.new_panel.pack(fill="x", pady=(0, 8))
+# In __init__:
+self.new_panel = NewPanel(self)
+self.new_panel.grid(row=1, column=0, sticky="nsew", padx=(12, 6), pady=(0, 12))
 
 # In refresh_from_model():
 self.new_panel.update_from_model(model)
 ```
+
+Alternatively, add new metrics directly to the existing `ProFormaPanel` by adding lines in `_build_layout()` and updating `update_from_model()`.
 
 ### Adding a New API Endpoint
 
@@ -797,9 +765,12 @@ def _fetch_new_data(self, param):
 | Component | Import From | Purpose |
 |-----------|------------|---------|
 | `SectionFrame` | `views/widgets.py` | Card-style panel with title header |
+| `CollapsibleSection` | `views/widgets.py` | Expandable/collapsible section with clickable header (accordion) |
 | `MetricRow` | `views/widgets.py` | Label + value display row |
 | `InputField` | `views/widgets.py` | Label + text entry with change callback |
 | `DropdownField` | `views/widgets.py` | Label + combobox with change callback |
+| `SearchableDropdown` | `views/widgets.py` | Label + filterable popup dropdown |
+| `RadioField` | `views/widgets.py` | Label + radio button group (horizontal or vertical) |
 | `DisplayField` | `views/widgets.py` | Label + read-only value display |
 | `SeparatorRow` | `views/widgets.py` | Horizontal line divider |
 | `COLORS` | `views/widgets.py` | 17-color dark theme palette |
@@ -834,13 +805,10 @@ def _fetch_new_data(self, param):
 
 | File | Key Classes | What It Does |
 |------|------------|-------------|
-| `views/widgets.py` | `SectionFrame`, `MetricRow`, `InputField`, `DropdownField`, `DisplayField`, `SeparatorRow` | Reusable UI building blocks. Also defines COLORS (17 colors) and FONTS (8 styles) dictionaries |
-| `views/dashboard.py` | `Dashboard(CTkFrame)` | Assembles all panels into a 3-column grid. refresh_from_model() propagates updates to all sub-panels |
-| `views/input_panel.py` | `InputPanel(CTkScrollableFrame)` | All user inputs organized in 5 card sections. Exposes callback attributes for controller wiring. get_all_inputs() / set_all_inputs() for bulk access |
-| `views/purchase_panel.py` | `PurchasePanel(SectionFrame)` | Displays purchase costs and loan details. 10 MetricRows |
-| `views/income_expense_panel.py` | `IncomePanel(SectionFrame)`, `ExpensePanel(SectionFrame)` | Income shows PGR/Vacancy/LtL/EGR. Expenses shows 6 line items + total + expense ratio |
-| `views/returns_panel.py` | `ReturnsPanel(SectionFrame)` | Key financial metrics with conditional coloring. Cash on Cash: green >10%, orange >6%, red <6%. DSCR: green >1.25, orange >1.0, red <1.0 |
-| `views/utility_detail_panel.py` | `UtilityDetailPanel(SectionFrame)` | Per-service utility breakdown. Rebuilds content dynamically based on model.utility_detail dict |
+| `views/widgets.py` | `SectionFrame`, `CollapsibleSection`, `MetricRow`, `InputField`, `DropdownField`, `SearchableDropdown`, `RadioField`, `DisplayField`, `SeparatorRow` | Reusable UI building blocks. Also defines COLORS (17 colors) and FONTS (8 styles) dictionaries |
+| `views/dashboard.py` | `Dashboard(CTkFrame)` | 2-column layout: ProFormaPanel (left, weight=5) + InputPanel (right, weight=2). refresh_from_model() propagates updates to the pro forma |
+| `views/proforma_panel.py` | `ProFormaPanel(CTkScrollableFrame)` | 3-column auto-scaling financial statement. Uniform scaling of fonts, padding, heights, and widths. Hides scrollbar when content fits |
+| `views/input_panel.py` | `InputPanel(CTkFrame)` | Accordion layout with 3 CollapsibleSections (Property, Financials, Utilities). Only one section open at a time. Exposes callback attributes for controller wiring. get_all_inputs() / set_all_inputs() for bulk access |
 | `views/deal_dialog.py` | `SaveDealDialog(CTkToplevel)`, `LoadDealDialog(CTkToplevel)` | Modal dialogs for deal name entry and deal list browsing with load/delete buttons |
 | `views/settings_dialog.py` | `SettingsDialog(CTkToplevel)` | API key configuration with HUD token and RapidAPI key fields |
 

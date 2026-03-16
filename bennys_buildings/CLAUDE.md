@@ -29,12 +29,11 @@ User Input ──→ InputPanel callbacks ──→ AppController
                                     ▼
                             Dashboard.refresh_from_model()
                                     │
-                    ┌───────────────┼───────────────┐
-                    ▼               ▼               ▼
-              PurchasePanel   ReturnsPanel    ExpensePanel  (etc.)
+                                    ▼
+                            ProFormaPanel.update_from_model()
 ```
 
-**Data flow:** Input change → Controller parses values into `DealInputs` → sets `model._inputs` → calls `model.recalculate()` → model notifies listeners → `dashboard.refresh_from_model(model)` → each panel's `update_from_model(model)` updates labels.
+**Data flow:** Input change → Controller parses values into `DealInputs` → sets `model._inputs` → calls `model.recalculate()` → model notifies listeners → `dashboard.refresh_from_model(model)` → `ProFormaPanel.update_from_model(model)` updates all labels.
 
 ## File Map
 
@@ -48,15 +47,16 @@ models/
   deal_manager.py                DealManager — save/load/list/delete JSON deal files
 views/
   widgets.py                     COLORS dict (17 colors), FONTS dict (8 styles), SectionFrame,
-                                   MetricRow, SeparatorRow, InputField, DropdownField, DisplayField
-  dashboard.py                   3-column grid: left (Purchase+Income+Utility), mid (Returns+Expenses),
-                                   right (InputPanel scrollable)
-  input_panel.py                 All user inputs: 8 dropdowns + 14 entry fields in 5 sections
-                                   (Property, Rates, Loan, Rent, Utilities)
-  purchase_panel.py              Displays: Total Price, Closing, Down Payment, Reserve, Capital, Leverage
-  income_expense_panel.py        IncomePanel (PGR, Vacancy, LtL, EGR) + ExpensePanel (6 line items + total)
-  returns_panel.py               NOI, Debt Service, Cashflow, CF Margin, Cash on Cash, Cap Rate, DSCR
-  utility_detail_panel.py        Per-service utility breakdown (conditional on Use UA = Yes)
+                                   CollapsibleSection, MetricRow, SeparatorRow, InputField,
+                                   DropdownField, SearchableDropdown, RadioField, DisplayField
+  dashboard.py                   2-column grid: left (ProFormaPanel, weight=5),
+                                   right (InputPanel, weight=2)
+  proforma_panel.py              3-column auto-scaling financial statement (CTkScrollableFrame).
+                                   Uniform scaling engine for fonts, padding, heights, widths.
+                                   Col1: Investment Summary + Financing + Capital Requirements.
+                                   Col2: Operating Statement + NOI. Col3: Metrics + Cash Flow
+  input_panel.py                 Accordion layout with 3 CollapsibleSections (Property, Financials,
+                                   Utilities). Single-open accordion behavior. 8 dropdowns + 14 fields
   deal_dialog.py                 SaveDealDialog (name entry) + LoadDealDialog (scrollable list)
   settings_dialog.py             API key entry form (HUD token + RapidAPI key)
 services/
@@ -140,7 +140,7 @@ COLORS["negative"]      # "#ff5252" — negative values, expenses
 COLORS["warning"]       # "#ffab40" — caution (DSCR near 1.0)
 ```
 
-Fonts are all **Segoe UI** at sizes 10 (small), 12 (label/input), 13 (value), 14 (header), 15 (value_large), 18 (title).
+Fonts are all **Segoe UI** at sizes 11 (small), 13 (label/input/subheader), 14 (value), 15 (header), 16 (value_large), 18 (title). The ProFormaPanel uses its own base font sizes (9–17) with a scaling engine that adjusts all sizes proportionally based on viewport dimensions.
 
 ### Data Directory Resolution
 ```python
@@ -210,22 +210,23 @@ API keys are pre-populated from the original Excel workbook. User can update via
 ### Adding a new computed metric
 1. Add the formula to `PropertyModel.recalculate()` in `models/property_model.py` — respect computation order
 2. Add a `self.new_metric: float = 0.0` attribute in `__init__`
-3. Add a `MetricRow` to the appropriate panel (e.g., `views/returns_panel.py`)
-4. Update that panel's `update_from_model()` to display the new value
+3. Add a display line in `views/proforma_panel.py` `_build_layout()` using `_add_line()` or `_add_metric_line()`
+4. Update `update_from_model()` in `proforma_panel.py` to set the new value with `_set()`
 5. Add a test in `tests/test_property_model.py`
 
 ### Adding a new input field
 1. Add the field to `DealInputs` dataclass in `models/data_types.py` with a default
-2. Add the UI widget in `views/input_panel.py` (InputField or DropdownField)
+2. Add the UI widget in `views/input_panel.py` in the appropriate `_build_*_section()` method (Property, Financials, or Utility)
 3. Wire it in `get_all_inputs()` and `set_all_inputs()` in InputPanel
 4. Parse it in `AppController._collect_inputs()`
 5. Use it in `PropertyModel.recalculate()`
 
 ### Adding a new view panel
-1. Create `views/new_panel.py` extending `SectionFrame`
-2. Add `MetricRow` widgets and an `update_from_model()` method
+1. Create `views/new_panel.py` extending `SectionFrame` or `CTkScrollableFrame`
+2. Add display widgets and an `update_from_model()` method
 3. Import and instantiate in `views/dashboard.py`
 4. Call its `update_from_model()` in `Dashboard.refresh_from_model()`
+5. Alternatively, add new metrics directly to `ProFormaPanel._build_layout()`
 
 ### Adding utility allowance data for a new state
 1. Create `data/utility_allowances/{state_code_lowercase}.json` (e.g., `tx.json`)

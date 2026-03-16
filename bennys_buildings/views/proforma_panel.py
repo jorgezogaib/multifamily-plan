@@ -3,8 +3,9 @@
 Consolidates all output panels into a single scrollable view formatted
 like a standard real estate investment proforma / operating statement.
 
-Uses a 2-column layout with auto-scaling fonts that maximize readability
-based on available screen space.
+Uses a 3-column layout with auto-scaling fonts that maximize readability
+based on available screen space.  Fonts, padding, and separator heights
+all scale together so proportions are preserved at every size.
 """
 
 import customtkinter as ctk
@@ -14,11 +15,6 @@ from utils.formatting import format_currency, format_percent, format_ratio
 
 class ProFormaPanel(ctk.CTkScrollableFrame):
     """Scrollable pro forma financial statement with auto-scaling fonts."""
-
-    # Known content height at base font sizes (scale 1.0).
-    # Computed from the layout: right column has ~25 rows of varying height
-    # totaling ~650px, plus title ~30px, padding/margins ~20px.
-    _BASE_CONTENT_H = 700
 
     def __init__(self, parent, **kwargs):
         super().__init__(
@@ -33,19 +29,50 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         )
 
         self._rows: dict[str, ctk.CTkLabel] = {}
-        self._font_reg: list[tuple] = []  # (widget, family, base_size, bold)
+        self._font_reg: list[tuple] = []    # (widget, family, base_size, bold)
+        self._pad_reg: list[tuple] = []     # (widget, mgr, base_padx, base_pady)
+        self._height_reg: list[tuple] = []  # (widget, base_height)
+        self._width_reg: list[tuple] = []   # (widget, base_width)
         self._current_scale = 1.0
         self._scale_pending = False
+        self._base_content_h = None         # measured once after first layout
+        self._last_viewport_h = 0           # flicker guard
+        self._last_viewport_w = 0
 
         self._build_layout()
         # Bind to the canvas viewport — self is the inner content frame
         self._parent_canvas.bind("<Configure>", self._schedule_rescale)
+        # Defer base measurement until layout is complete
+        self.after(200, self._measure_base)
 
     # ── Auto-scaling engine ──
 
     def _rf(self, w, family, size, bold=False):
         """Register a widget for font scaling."""
         self._font_reg.append((w, family, size, bold))
+
+    def _rp(self, w, padx, pady, manager="pack"):
+        """Register a widget for padding scaling."""
+        self._pad_reg.append((w, manager, padx, pady))
+
+    def _rh(self, w, height):
+        """Register a separator/spacer for height scaling."""
+        self._height_reg.append((w, height))
+
+    def _rw(self, w, width):
+        """Register a widget for width scaling."""
+        self._width_reg.append((w, width))
+
+    def _measure_base(self):
+        """Measure content height at scale 1.0, retrying until layout ready."""
+        self.update_idletasks()
+        h = self.winfo_reqheight()
+        if h > 100:
+            self._base_content_h = h
+            self._last_viewport_h = 0  # force first scale
+            self._auto_scale()
+        else:
+            self.after(100, self._measure_base)
 
     def _schedule_rescale(self, event=None):
         if not self._scale_pending:
@@ -54,25 +81,76 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
 
     def _auto_scale(self):
         self._scale_pending = False
-        h = self._parent_canvas.winfo_height()
-        if h <= 100:
+        if self._base_content_h is None:
+            return
+        viewport_h = self._parent_canvas.winfo_height()
+        viewport_w = self._parent_canvas.winfo_width()
+        if viewport_h <= 100:
             return
 
-        raw = h / self._BASE_CONTENT_H
-        scale = max(0.75, min(1.5, raw))
+        # Only rescale when viewport actually changed (prevents flicker
+        # from content-only updates like changing input values).
+        if (viewport_h == self._last_viewport_h
+                and viewport_w == self._last_viewport_w):
+            return
+        self._last_viewport_h = viewport_h
+        self._last_viewport_w = viewport_w
+
+        # Vertical scale: fill available height
+        h_scale = viewport_h / self._base_content_h
+
+        # Width cap: 3 columns each need ~250px at base font sizes.
+        # Prevent horizontal overflow by capping scale to column width.
+        col_w = (viewport_w - 16) / 3
+        w_scale = col_w / 250 if col_w > 100 else 1.0
+
+        scale = max(0.75, min(2.0, h_scale, w_scale))
 
         if abs(scale - self._current_scale) >= 0.02:
             self._current_scale = scale
             self._apply_scale(scale)
 
-        self._toggle_scrollbar(raw >= 0.95)
+        # Hide scrollbar when scaled content fits the viewport
+        self.update_idletasks()
+        actual_h = self.winfo_reqheight()
+        self._toggle_scrollbar(actual_h <= viewport_h + 5)
+
+    def _sp(self, pad, s):
+        """Scale a padding value (int or tuple)."""
+        if isinstance(pad, tuple):
+            return (max(0, round(pad[0] * s)), max(0, round(pad[1] * s)))
+        return max(0, round(pad * s))
 
     def _apply_scale(self, s):
+        """Apply uniform scale to fonts, padding, and heights."""
         for w, fam, base, bold in self._font_reg:
             sz = max(9, round(base * s))
             f = (fam, sz, "bold") if bold else (fam, sz)
             try:
                 w.configure(font=f)
+            except Exception:
+                pass
+
+        for w, mgr, base_padx, base_pady in self._pad_reg:
+            new_padx = self._sp(base_padx, s)
+            new_pady = self._sp(base_pady, s)
+            try:
+                if mgr == "grid":
+                    w.grid_configure(padx=new_padx, pady=new_pady)
+                else:
+                    w.pack_configure(padx=new_padx, pady=new_pady)
+            except Exception:
+                pass
+
+        for w, base_h in self._height_reg:
+            try:
+                w.configure(height=max(1, round(base_h * s)))
+            except Exception:
+                pass
+
+        for w, base_w in self._width_reg:
+            try:
+                w.configure(width=max(1, round(base_w * s)))
             except Exception:
                 pass
 
@@ -91,26 +169,39 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         """Build the entire pro forma statement layout."""
         self._add_title("INVESTMENT PRO FORMA")
 
-        # 2-column container
+        # 3-column container
         cols = ctk.CTkFrame(self, fg_color="transparent")
         cols.pack(fill="both", expand=True)
         cols.columnconfigure(0, weight=1)
         cols.columnconfigure(1, weight=1)
+        cols.columnconfigure(2, weight=1)
         cols.rowconfigure(0, weight=1)
 
         L = ctk.CTkFrame(cols, fg_color="transparent")
-        L.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        L.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self._rp(L, (0, 8), 0, "grid")
+
+        M = ctk.CTkFrame(cols, fg_color="transparent")
+        M.grid(row=0, column=1, sticky="nsew", padx=8)
+        self._rp(M, 8, 0, "grid")
 
         R = ctk.CTkFrame(cols, fg_color="transparent")
-        R.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        R.grid(row=0, column=2, sticky="nsew", padx=(8, 0))
+        self._rp(R, (8, 0), 0, "grid")
 
-        # ── Left: Deal Structure + Cash Flow ──
+        # ── Col 1: Investment Summary → Financing → Capital Requirements ──
 
         self._add_section_header("INVESTMENT SUMMARY", L)
         self._add_line("total_price", "Acquisition Price", L)
         self._add_detail("price_detail", "", L)
         self._add_line("property_info", "Property", L)
         self._add_line("location", "Location", L)
+
+        self._add_section_header("FINANCING", L)
+        self._add_line("loan_amount", "Loan Amount", L)
+        self._add_line("loan_terms", "Term / Rate", L)
+        self._add_line("debt_service", "Annual Debt Service", L)
+        self._add_detail("monthly_ds", "", L)
 
         self._add_section_header("CAPITAL REQUIREMENTS", L)
         self._add_line("down_payment", "Down Payment", L)
@@ -120,44 +211,33 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         self._add_single_separator(L)
         self._add_total_line("total_capital", "Total Capital Required", L)
 
-        self._add_section_header("FINANCING", L)
-        self._add_line("loan_amount", "Loan Amount", L)
-        self._add_line("loan_terms", "Term / Rate", L)
-        self._add_line("debt_service", "Annual Debt Service", L)
-        self._add_detail("monthly_ds", "", L)
+        # ── Col 2: Operating Statement → NOI ──
 
-        self._add_section_header("CASH FLOW ANALYSIS", L)
-        self._add_line("cf_noi", "Net Operating Income", L)
-        self._add_line("cf_ds", "Less: Debt Service", L)
-        self._add_single_separator(L)
-        self._add_total_line("annual_cf", "Annual Cash Flow", L)
-        self._add_line("monthly_cf", "Monthly Cash Flow", L)
+        self._add_section_header("OPERATING STATEMENT", M)
+        self._add_subsection("Revenue", M)
+        self._add_line("pgr", "Potential Gross Rent", M)
+        self._add_line("vacancy", "Less: Vacancy", M)
+        self._add_line("ltl", "Less: Loss to Lease", M)
+        self._add_single_separator(M)
+        self._add_subtotal_line("egr", "Effective Gross Revenue", M)
+        self._add_spacer(M)
 
-        # ── Right: Operating Statement + Metrics ──
+        self._add_subsection("Operating Expenses", M)
+        self._add_line("maintenance", "Maintenance", M)
+        self._add_line("management", "Management", M)
+        self._add_line("improvements", "Annual Improvements", M)
+        self._add_line("utility_allowance", "Utility Allowance", M)
+        self._add_line("insurance", "Insurance", M)
+        self._add_line("taxes", "Property Tax", M)
+        self._add_single_separator(M)
+        self._add_subtotal_line("total_expenses", "Total Expenses", M)
+        self._add_detail("expense_ratio", "", M)
+        self._add_spacer(M)
 
-        self._add_section_header("OPERATING STATEMENT", R)
-        self._add_subsection("Revenue", R)
-        self._add_line("pgr", "Potential Gross Rent", R)
-        self._add_line("vacancy", "Less: Vacancy", R)
-        self._add_line("ltl", "Less: Loss to Lease", R)
-        self._add_single_separator(R)
-        self._add_subtotal_line("egr", "Effective Gross Revenue", R)
-        self._add_spacer(R)
+        self._add_double_separator(M)
+        self._add_total_line("noi", "NET OPERATING INCOME", M)
 
-        self._add_subsection("Operating Expenses", R)
-        self._add_line("maintenance", "Maintenance", R)
-        self._add_line("management", "Management", R)
-        self._add_line("improvements", "Annual Improvements", R)
-        self._add_line("utility_allowance", "Utility Allowance", R)
-        self._add_line("insurance", "Insurance", R)
-        self._add_line("taxes", "Property Tax", R)
-        self._add_single_separator(R)
-        self._add_subtotal_line("total_expenses", "Total Expenses", R)
-        self._add_detail("expense_ratio", "", R)
-        self._add_spacer(R)
-
-        self._add_double_separator(R)
-        self._add_total_line("noi", "NET OPERATING INCOME", R)
+        # ── Col 3: Investment Metrics → Cash Flow ──
 
         self._add_section_header("INVESTMENT METRICS", R)
         self._add_metric_line("cap_rate", "Cap Rate", R)
@@ -168,6 +248,13 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         self._add_metric_line("breakeven_occ", "Break-even Occupancy", R)
         self._add_metric_line("price_per_br", "Price / Bedroom", R)
 
+        self._add_section_header("CASH FLOW ANALYSIS", R)
+        self._add_line("cf_noi", "Net Operating Income", R)
+        self._add_line("cf_ds", "Less: Debt Service", R)
+        self._add_single_separator(R)
+        self._add_line("monthly_cf", "Monthly Cash Flow", R)
+        self._add_total_line("annual_cf", "Annual Cash Flow", R)
+
     # ── Layout helpers — rows auto-size from content ──
 
     def _add_title(self, text: str):
@@ -177,77 +264,113 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
             text_color=COLORS["accent_cyan"],
             anchor="center",
         )
-        lbl.pack(fill="x", pady=(6, 2))
+        lbl.pack(fill="x", pady=(8, 4))
         self._rf(lbl, "Segoe UI", 17, bold=True)
+        self._rp(lbl, 0, (8, 4))
         sep = ctk.CTkFrame(self, height=2, fg_color=COLORS["accent_cyan"])
-        sep.pack(fill="x", padx=12, pady=(0, 6))
+        sep.pack(fill="x", padx=10, pady=(0, 6))
+        self._rp(sep, 10, (0, 6))
+        self._rh(sep, 2)
 
     def _add_section_header(self, text: str, parent=None):
         p = parent if parent is not None else self
         lbl = ctk.CTkLabel(
             p, text=text,
-            font=("Segoe UI", 13, "bold"),
+            font=("Segoe UI", 12, "bold"),
             text_color=COLORS["header"],
             anchor="w",
         )
-        lbl.pack(fill="x", padx=12, pady=(10, 0))
-        self._rf(lbl, "Segoe UI", 13, bold=True)
+        lbl.pack(fill="x", padx=10, pady=(10, 0))
+        self._rf(lbl, "Segoe UI", 12, bold=True)
+        self._rp(lbl, 10, (10, 0))
         sep = ctk.CTkFrame(p, height=1, fg_color=COLORS["header"])
-        sep.pack(fill="x", padx=12, pady=(2, 4))
+        sep.pack(fill="x", padx=10, pady=(2, 4))
+        self._rp(sep, 10, (2, 4))
+        self._rh(sep, 1)
 
     def _add_subsection(self, text: str, parent=None):
         p = parent if parent is not None else self
         lbl = ctk.CTkLabel(
             p, text=text,
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 11, "bold"),
             text_color=COLORS["text_muted"],
             anchor="w",
         )
-        lbl.pack(fill="x", padx=18, pady=(4, 2))
-        self._rf(lbl, "Segoe UI", 12, bold=True)
+        lbl.pack(fill="x", padx=14, pady=(4, 2))
+        self._rf(lbl, "Segoe UI", 11, bold=True)
+        self._rp(lbl, 14, (4, 2))
 
     def _add_line(self, key: str, label: str, parent=None):
         p = parent if parent is not None else self
         row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=18, pady=1)
+        row.pack(fill="x", padx=14, pady=2)
+        self._rp(row, 14, 2)
 
         lbl = ctk.CTkLabel(
-            row, text=label, font=("Segoe UI", 13),
+            row, text=label, font=("Segoe UI", 12),
             text_color=COLORS["text_secondary"], anchor="w",
         )
         lbl.pack(side="left", fill="x", expand=True)
-        self._rf(lbl, "Segoe UI", 13)
-
-        rate_lbl = ctk.CTkLabel(
-            row, text="", font=("Segoe UI", 10),
-            text_color=COLORS["text_muted"], anchor="e",
-        )
-        rate_lbl.pack(side="right", padx=(6, 0))
-        self._rf(rate_lbl, "Segoe UI", 10)
-        self._rows[f"{key}_rate"] = rate_lbl
+        self._rf(lbl, "Segoe UI", 12)
 
         val_lbl = ctk.CTkLabel(
-            row, text="$0", font=("Segoe UI Semibold", 13),
+            row, text="$0", font=("Segoe UI Semibold", 12),
             text_color=COLORS["text_primary"], anchor="e",
         )
-        val_lbl.pack(side="right", padx=(6, 0))
-        self._rf(val_lbl, "Segoe UI Semibold", 13)
+        val_lbl.pack(side="right", padx=(4, 0))
+        self._rf(val_lbl, "Segoe UI Semibold", 12)
+        self._rp(val_lbl, (4, 0), 0)
         self._rows[key] = val_lbl
+
+        rate_lbl = ctk.CTkLabel(
+            row, text="", font=("Segoe UI", 9),
+            text_color=COLORS["text_muted"], anchor="e",
+            width=36,
+        )
+        rate_lbl.pack(side="right", padx=(0, 4))
+        self._rf(rate_lbl, "Segoe UI", 9)
+        self._rp(rate_lbl, (0, 4), 0)
+        self._rw(rate_lbl, 36)
+        self._rows[f"{key}_rate"] = rate_lbl
 
     def _add_detail(self, key: str, text: str, parent=None):
         p = parent if parent is not None else self
         lbl = ctk.CTkLabel(
-            p, text=text, font=("Segoe UI", 10),
+            p, text=text, font=("Segoe UI", 9),
             text_color=COLORS["text_muted"], anchor="e",
         )
-        lbl.pack(fill="x", padx=18, pady=(0, 1))
-        self._rf(lbl, "Segoe UI", 10)
+        lbl.pack(fill="x", padx=14, pady=(0, 2))
+        self._rf(lbl, "Segoe UI", 9)
+        self._rp(lbl, 14, (0, 2))
         self._rows[key] = lbl
 
     def _add_subtotal_line(self, key: str, label: str, parent=None):
         p = parent if parent is not None else self
         row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=18, pady=2)
+        row.pack(fill="x", padx=14, pady=3)
+        self._rp(row, 14, 3)
+
+        lbl = ctk.CTkLabel(
+            row, text=label, font=("Segoe UI", 12, "bold"),
+            text_color=COLORS["text_primary"], anchor="w",
+        )
+        lbl.pack(side="left", fill="x", expand=True)
+        self._rf(lbl, "Segoe UI", 12, bold=True)
+
+        val_lbl = ctk.CTkLabel(
+            row, text="$0", font=("Segoe UI Semibold", 13),
+            text_color=COLORS["accent_teal"], anchor="e",
+        )
+        val_lbl.pack(side="right", padx=(4, 0))
+        self._rf(val_lbl, "Segoe UI Semibold", 13)
+        self._rp(val_lbl, (4, 0), 0)
+        self._rows[key] = val_lbl
+
+    def _add_total_line(self, key: str, label: str, parent=None):
+        p = parent if parent is not None else self
+        row = ctk.CTkFrame(p, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=3)
+        self._rp(row, 10, 3)
 
         lbl = ctk.CTkLabel(
             row, text=label, font=("Segoe UI", 13, "bold"),
@@ -258,67 +381,58 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
 
         val_lbl = ctk.CTkLabel(
             row, text="$0", font=("Segoe UI Semibold", 14),
-            text_color=COLORS["accent_teal"], anchor="e",
-        )
-        val_lbl.pack(side="right", padx=(6, 0))
-        self._rf(val_lbl, "Segoe UI Semibold", 14)
-        self._rows[key] = val_lbl
-
-    def _add_total_line(self, key: str, label: str, parent=None):
-        p = parent if parent is not None else self
-        row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=14, pady=2)
-
-        lbl = ctk.CTkLabel(
-            row, text=label, font=("Segoe UI", 14, "bold"),
-            text_color=COLORS["text_primary"], anchor="w",
-        )
-        lbl.pack(side="left", fill="x", expand=True)
-        self._rf(lbl, "Segoe UI", 14, bold=True)
-
-        val_lbl = ctk.CTkLabel(
-            row, text="$0", font=("Segoe UI Semibold", 15),
             text_color=COLORS["accent_orange"], anchor="e",
         )
-        val_lbl.pack(side="right", padx=(6, 0))
-        self._rf(val_lbl, "Segoe UI Semibold", 15)
+        val_lbl.pack(side="right", padx=(4, 0))
+        self._rf(val_lbl, "Segoe UI Semibold", 14)
+        self._rp(val_lbl, (4, 0), 0)
         self._rows[key] = val_lbl
 
     def _add_metric_line(self, key: str, label: str, parent=None):
         p = parent if parent is not None else self
         row = ctk.CTkFrame(p, fg_color="transparent")
-        row.pack(fill="x", padx=18, pady=1)
+        row.pack(fill="x", padx=14, pady=2)
+        self._rp(row, 14, 2)
 
         lbl = ctk.CTkLabel(
-            row, text=label, font=("Segoe UI", 13),
+            row, text=label, font=("Segoe UI", 12),
             text_color=COLORS["text_secondary"], anchor="w",
         )
         lbl.pack(side="left", fill="x", expand=True)
-        self._rf(lbl, "Segoe UI", 13)
+        self._rf(lbl, "Segoe UI", 12)
 
         val_lbl = ctk.CTkLabel(
-            row, text="0.00%", font=("Segoe UI Semibold", 15),
+            row, text="0.00%", font=("Segoe UI Semibold", 14),
             text_color=COLORS["accent_orange"], anchor="e",
         )
-        val_lbl.pack(side="right", padx=(6, 0))
-        self._rf(val_lbl, "Segoe UI Semibold", 15)
+        val_lbl.pack(side="right", padx=(4, 0))
+        self._rf(val_lbl, "Segoe UI Semibold", 14)
+        self._rp(val_lbl, (4, 0), 0)
         self._rows[key] = val_lbl
 
     def _add_single_separator(self, parent=None):
         p = parent if parent is not None else self
         sep = ctk.CTkFrame(p, height=1, fg_color=COLORS["separator"])
-        sep.pack(fill="x", padx=18, pady=3)
+        sep.pack(fill="x", padx=14, pady=3)
+        self._rp(sep, 14, 3)
+        self._rh(sep, 1)
 
     def _add_double_separator(self, parent=None):
         p = parent if parent is not None else self
-        ctk.CTkFrame(p, height=1, fg_color=COLORS["separator"]).pack(
-            fill="x", padx=18, pady=(3, 1))
-        ctk.CTkFrame(p, height=1, fg_color=COLORS["separator"]).pack(
-            fill="x", padx=18, pady=(0, 3))
+        s1 = ctk.CTkFrame(p, height=1, fg_color=COLORS["separator"])
+        s1.pack(fill="x", padx=14, pady=(3, 1))
+        self._rp(s1, 14, (3, 1))
+        self._rh(s1, 1)
+        s2 = ctk.CTkFrame(p, height=1, fg_color=COLORS["separator"])
+        s2.pack(fill="x", padx=14, pady=(0, 3))
+        self._rp(s2, 14, (0, 3))
+        self._rh(s2, 1)
 
     def _add_spacer(self, parent=None):
         p = parent if parent is not None else self
-        ctk.CTkFrame(p, fg_color="transparent", height=6).pack(fill="x")
+        spacer = ctk.CTkFrame(p, fg_color="transparent", height=6)
+        spacer.pack(fill="x")
+        self._rh(spacer, 6)
 
     # ── Value setters ──
 

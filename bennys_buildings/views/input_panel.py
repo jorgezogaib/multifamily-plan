@@ -1,4 +1,4 @@
-"""Input panel — all user inputs organized in tabbed groups.
+"""Input panel — all user inputs organized in collapsible accordion sections.
 
 This is the right column of the dashboard containing dropdowns for
 property configuration, entry fields for financial parameters, and
@@ -10,12 +10,13 @@ from typing import Optional, Callable
 
 from views.widgets import (
     InputField, DropdownField, SearchableDropdown,
-    RadioField, DisplayField, SeparatorRow, COLORS, FONTS
+    RadioField, DisplayField, SeparatorRow,
+    CollapsibleSection, COLORS, FONTS
 )
 
 
 class InputPanel(ctk.CTkFrame):
-    """Tabbed panel containing all user input fields."""
+    """Accordion panel containing all user input fields."""
 
     def __init__(self, parent, **kwargs):
         super().__init__(
@@ -31,39 +32,61 @@ class InputPanel(ctk.CTkFrame):
         self.on_zip_changed: Optional[Callable] = None
         self.on_ua_toggled: Optional[Callable] = None
 
-        # Lock width — prevent resizing when switching tabs
+        # Lock width — prevent resizing when switching sections
         self.pack_propagate(False)
         self.grid_propagate(False)
 
-        # ── Tab view ──
-        self._tabview = ctk.CTkTabview(
+        # ── Scrollable container ──
+        self._scroll = ctk.CTkScrollableFrame(
             self,
-            fg_color=COLORS["bg_card"],
-            segmented_button_fg_color="#111b30",
-            segmented_button_selected_color=COLORS["bg_card_alt"],
-            segmented_button_selected_hover_color="#143a5e",
-            segmented_button_unselected_color="#111b30",
-            segmented_button_unselected_hover_color=COLORS["border"],
-            text_color=COLORS["accent_cyan"],
-            corner_radius=12,
-            border_width=1,
-            border_color=COLORS["border"],
+            fg_color="transparent",
+            corner_radius=0,
+            scrollbar_button_color=COLORS["border"],
+            scrollbar_button_hover_color=COLORS["accent_teal"],
         )
-        self._tabview.pack(fill="both", expand=True)
-        self._tabview._segmented_button.configure(
-            height=36,
-            font=("Segoe UI", 13, "bold"),
-            corner_radius=8,
-        )
-        self._tabview.configure(anchor="nw")
+        self._scroll.pack(fill="both", expand=True)
 
-        self._tabview.add("Property")
-        self._tabview.add("Financials")
-        self._tabview.add("Utilities")
+        # ── Accordion sections ──
+        self._sections: list[CollapsibleSection] = []
+
+        self._property_section = CollapsibleSection(
+            self._scroll, "Property",
+            on_toggle=self._on_section_toggled,
+        )
+        self._property_section.pack(fill="x", pady=(0, 4))
+        self._sections.append(self._property_section)
+
+        self._financials_section = CollapsibleSection(
+            self._scroll, "Financials",
+            on_toggle=self._on_section_toggled,
+        )
+        self._financials_section.pack(fill="x", pady=4)
+        self._sections.append(self._financials_section)
+
+        self._utilities_section = CollapsibleSection(
+            self._scroll, "Utilities",
+            on_toggle=self._on_section_toggled,
+        )
+        self._utilities_section.pack(fill="x", pady=(4, 0))
+        self._sections.append(self._utilities_section)
 
         self._build_property_section()
         self._build_financials_section()
         self._build_utility_section()
+
+        # Start with Property expanded
+        self._property_section.expand()
+
+    # ── Accordion behaviour ──
+
+    def _on_section_toggled(self, toggled_section, is_expanded):
+        """When one section opens, close all others."""
+        if is_expanded:
+            for section in self._sections:
+                if section is not toggled_section:
+                    section.collapse()
+
+    # ── Callbacks ──
 
     def _trigger_input_change(self, *args):
         """Called when any input field changes."""
@@ -95,88 +118,95 @@ class InputPanel(ctk.CTkFrame):
         self._trigger_input_change()
 
     def _add_group_label(self, parent, text):
-        """Small section label within a tab."""
+        """Small section label within a group."""
         lbl = ctk.CTkLabel(
             parent, text=text,
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 12, "bold"),
             text_color=COLORS["header"],
             anchor="w",
         )
         lbl.pack(fill="x", padx=14, pady=(6, 2))
 
-    # ── Property Tab ───────────────────────────────────────────
+    # ── Property Section ──────────────────────────────────────
     def _build_property_section(self):
-        tab = self._tabview.tab("Property")
+        container = self._property_section.content
 
         self.state_dd = SearchableDropdown(
-            tab, "State", [],
+            container, "State", [],
             on_change=self._trigger_state_change,
         )
         self.state_dd.pack(fill="x", pady=3, padx=12)
 
         self.county_dd = SearchableDropdown(
-            tab, "County", [],
+            container, "County", [],
             on_change=self._trigger_county_change,
         )
         self.county_dd.pack(fill="x", pady=3, padx=12)
 
         self.zip_code = InputField(
-            tab, "Zip Code",
+            container, "Zip Code",
             placeholder="70816",
             on_change=self._trigger_zip_change,
         )
         self.zip_code.pack(fill="x", pady=3, padx=12)
 
         self.property_type_dd = RadioField(
-            tab, "Type", [],
+            container, "Type", [],
             on_change=lambda v: self._trigger_input_change(),
             orientation="vertical",
         )
         self.property_type_dd.pack(fill="x", pady=3, padx=12)
 
         self.bedrooms_dd = DropdownField(
-            tab, "Bedrooms", [],
+            container, "Bedrooms", [],
             on_change=lambda v: self._trigger_input_change(),
         )
         self.bedrooms_dd.pack(fill="x", pady=3, padx=12)
 
         self.num_units = InputField(
-            tab, "# Units",
+            container, "# Units",
             placeholder="4",
             on_change=self._trigger_input_change,
         )
         self.num_units.pack(fill="x", pady=3, padx=12)
 
         self.price_per_unit = InputField(
-            tab, "$ / Unit",
+            container, "$ / Unit",
             placeholder="Leave blank if providing Total $",
             on_change=self._on_price_per_unit_changed,
         )
         self.price_per_unit.pack(fill="x", pady=3, padx=12)
 
         self.manual_total = InputField(
-            tab, "Total $ (opt)",
+            container, "Total $ (opt)",
             placeholder="Leave blank if providing $ / Unit",
             on_change=self._on_manual_total_changed,
         )
         self.manual_total.pack(fill="x", pady=3, padx=12)
 
-    # ── Financials Tab (Loan + Revenue + Expenses) ────────────
+        self.rent_ready = InputField(
+            container, "Rent Ready $",
+            placeholder="0",
+            on_change=self._trigger_input_change,
+        )
+        self.rent_ready.pack(fill="x", pady=3, padx=12)
+
+    # ── Financials Section (Loan + Revenue + Expenses) ────────
     def _build_financials_section(self):
-        tab = self._tabview.tab("Financials")
+        container = self._financials_section.content
 
         # ── Loan Terms ──
-        self._add_group_label(tab, "LOAN")
+        self._add_group_label(container, "LOAN")
 
         self.loan_term = InputField(
-            tab, "Term (yr)",
+            container, "Term (yr)",
             placeholder="30",
             on_change=self._trigger_input_change,
         )
         self.loan_term.pack(fill="x", pady=2, padx=12)
 
         self.interest_rate = InputField(
-            tab, "Rate %",
+            container, "Rate %",
             placeholder="6.5",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -184,7 +214,7 @@ class InputPanel(ctk.CTkFrame):
         self.interest_rate.pack(fill="x", pady=2, padx=12)
 
         self.down_pct = InputField(
-            tab, "Down %",
+            container, "Down %",
             placeholder="25",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -192,7 +222,7 @@ class InputPanel(ctk.CTkFrame):
         self.down_pct.pack(fill="x", pady=2, padx=12)
 
         self.closing_pct = InputField(
-            tab, "Closing %",
+            container, "Closing %",
             placeholder="2",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -200,37 +230,30 @@ class InputPanel(ctk.CTkFrame):
         self.closing_pct.pack(fill="x", pady=2, padx=12)
 
         self.reserve_months = InputField(
-            tab, "Reserve (mo)",
+            container, "Reserve (mo)",
             placeholder="6",
             on_change=self._trigger_input_change,
         )
         self.reserve_months.pack(fill="x", pady=2, padx=12)
 
-        self.rent_ready = InputField(
-            tab, "Rent Ready $",
-            placeholder="0",
-            on_change=self._trigger_input_change,
-        )
-        self.rent_ready.pack(fill="x", pady=2, padx=12)
-
         # ── Revenue ──
-        self._add_group_label(tab, "REVENUE")
+        self._add_group_label(container, "REVENUE")
 
         self.fmr_rent_display = DisplayField(
-            tab, "FMR Rent",
+            container, "FMR Rent",
             value_color=COLORS["accent_cyan"],
         )
         self.fmr_rent_display.pack(fill="x", pady=2, padx=12)
 
         self.manual_rent = InputField(
-            tab, "Manual Rent",
+            container, "Manual Rent",
             placeholder="Override FMR",
             on_change=self._trigger_input_change,
         )
         self.manual_rent.pack(fill="x", pady=2, padx=12)
 
         self.vacancy_rate = InputField(
-            tab, "Vacancy %",
+            container, "Vacancy %",
             placeholder="5",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -238,7 +261,7 @@ class InputPanel(ctk.CTkFrame):
         self.vacancy_rate.pack(fill="x", pady=2, padx=12)
 
         self.ltl_rate = InputField(
-            tab, "LtL %",
+            container, "LtL %",
             placeholder="0",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -246,10 +269,10 @@ class InputPanel(ctk.CTkFrame):
         self.ltl_rate.pack(fill="x", pady=2, padx=12)
 
         # ── Expenses ──
-        self._add_group_label(tab, "EXPENSES")
+        self._add_group_label(container, "EXPENSES")
 
         self.maintenance_rate = InputField(
-            tab, "Maint %",
+            container, "Maint %",
             placeholder="15",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -257,7 +280,7 @@ class InputPanel(ctk.CTkFrame):
         self.maintenance_rate.pack(fill="x", pady=2, padx=12)
 
         self.management_rate = InputField(
-            tab, "Mgmt %",
+            container, "Mgmt %",
             placeholder="10",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -265,7 +288,7 @@ class InputPanel(ctk.CTkFrame):
         self.management_rate.pack(fill="x", pady=2, padx=12)
 
         self.improvements_rate = InputField(
-            tab, "Improve %",
+            container, "Improve %",
             placeholder="15",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -273,7 +296,7 @@ class InputPanel(ctk.CTkFrame):
         self.improvements_rate.pack(fill="x", pady=2, padx=12)
 
         self.insurance_rate = InputField(
-            tab, "Insurance %",
+            container, "Insurance %",
             placeholder="1.5",
             on_change=self._trigger_input_change,
             suffix="%",
@@ -281,19 +304,19 @@ class InputPanel(ctk.CTkFrame):
         self.insurance_rate.pack(fill="x", pady=2, padx=12)
 
         self.tax_rate = InputField(
-            tab, "Tax %",
+            container, "Tax %",
             placeholder="1.0",
             on_change=self._trigger_input_change,
             suffix="%",
         )
         self.tax_rate.pack(fill="x", pady=2, padx=12)
 
-    # ── Utilities Tab ────────────────────────────────────────────
+    # ── Utilities Section ─────────────────────────────────────
     def _build_utility_section(self):
-        tab = self._tabview.tab("Utilities")
+        container = self._utilities_section.content
 
         self.use_utility_dd = RadioField(
-            tab, "Use UA?", ["Yes", "No"],
+            container, "Use UA?", ["Yes", "No"],
             default="No",
             on_change=self._on_ua_toggled,
         )
@@ -301,7 +324,7 @@ class InputPanel(ctk.CTkFrame):
 
         # Container for utility detail fields — hidden when UA is No
         self._ua_fields_frame = ctk.CTkFrame(
-            tab, fg_color="transparent"
+            container, fg_color="transparent"
         )
 
         self.has_gas_dd = DropdownField(
