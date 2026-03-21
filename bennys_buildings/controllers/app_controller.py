@@ -5,6 +5,7 @@ Handles:
     - Input parsing and model updates
     - Threaded API calls with UI callbacks
     - Deal save/load orchestration
+    - New API integrations: API Ninjas, FRED, OpenFEMA
 """
 
 import json
@@ -15,7 +16,10 @@ from typing import Optional
 from models.property_model import PropertyModel
 from models.data_types import DealInputs, DealData, FMRData
 from models.deal_manager import DealManager
-from services.api_service import HUDApiService, RapidApiService, APIError
+from services.api_service import (
+    HUDApiService, RapidApiService, ApiNinjasService,
+    FREDApiService, OpenFEMAService, APIError,
+)
 from services.config_service import ConfigService
 from views.dashboard import Dashboard
 from utils.formatting import parse_float, parse_int
@@ -45,12 +49,16 @@ class AppController:
         cfg = config_service.config
         self._hud_api = HUDApiService(cfg.hud_api_token)
         self._rapid_api = RapidApiService(cfg.rapidapi_key)
+        self._ninjas_api = ApiNinjasService(cfg.api_ninjas_key)
+        self._fred_api = FREDApiService(cfg.fred_api_key)
+        self._fema_api = OpenFEMAService()
 
         # State tracking
         self._states_loaded = False
         self._county_fips_map: dict[str, str] = {}  # county_name -> fips_code
         self._pending_county: Optional[str] = None  # Set during deal load
         self._zip_driven: bool = False  # True when zip is driving state/county
+        self._current_county_fips: str = ""  # For FEMA/income limits lookups
 
         # Wire up the input panel callbacks
         ip = dashboard.input_panel
@@ -155,6 +163,7 @@ class AppController:
                 if raw["manual_total_price"].strip() else None
             ),
             zip_code=raw["zip_code"],
+            street_address=raw.get("street_address", ""),
             insurance_rate=parse_float(raw["insurance_rate"], 1.5) / 100,
             tax_rate=parse_float(raw["tax_rate"], 1.0) / 100,
             loan_term=parse_int(raw["loan_term"], 30),
@@ -186,6 +195,7 @@ class AppController:
         inputs = self._collect_inputs()
         self._model._inputs = inputs
         self._model.recalculate()
+        self._refresh_fmr_display()
 
     def _on_model_updated(self):
         """Called after the model recalculates."""
@@ -198,10 +208,14 @@ class AppController:
     # ── State / County / FMR cascading ─────────────────────────────
 
     def initialize(self):
-        """Load states list on startup."""
+        """Load states list on startup + fetch background market data."""
         self._set_status("Loading states...")
         thread = threading.Thread(target=self._fetch_states, daemon=True)
         thread.start()
+
+        # Fetch mortgage rates in background (non-blocking)
+        self._fetch_mortgage_rates_async()
+        self._fetch_fred_data_async()
 
     def _fetch_states(self):
         """Fetch states list from HUD API (background thread)."""
@@ -286,7 +300,7 @@ class AppController:
         self._on_input_changed()
 
     def _on_county_changed(self, county_name: str):
-        """Handle county dropdown change — fetch FMR data."""
+        """Handle county dropdown change — fetch FMR + income limits + flood risk."""
         # Manual county selection clears zip code
         if not self._zip_driven:
             self._dashboard.input_panel.zip_code.set("")
@@ -295,13 +309,22 @@ class AppController:
         if not fips_code:
             return
 
+        self._current_county_fips = fips_code
         self._set_status(f"Loading FMR data for {county_name}...")
+
+        # Fetch FMR (existing)
         thread = threading.Thread(
             target=self._fetch_fmr,
             args=(fips_code, county_name),
             daemon=True,
         )
         thread.start()
+
+        # Fetch HUD Income Limits (new — uses existing token)
+        self._fetch_income_limits_async(fips_code)
+
+        # Fetch OpenFEMA flood risk (new — no key needed)
+        self._fetch_flood_risk_async(fips_code)
 
     def _fetch_fmr(self, fips_code: str, county_name: str):
         """Fetch FMR data for a county (background thread)."""
@@ -318,21 +341,27 @@ class AppController:
     def _on_fmr_loaded(self, fmr: FMRData, county_name: str):
         """Update model and UI with FMR data."""
         self._model.fmr_data = fmr  # This triggers recalculate
+        self._refresh_fmr_display()
 
-        # Update the FMR rent display
-        fmr_key = self._model._get_fmr_key()
-        rent = fmr.get_rent_by_key(fmr_key)
-        self._dashboard.input_panel.set_fmr_rent(rent, fmr.year)
-
+        rent = self._model.fmr_rent
         self._set_status(
             f"{county_name}  |  FMR: ${rent:,.0f}/mo  |  "
             f"{self._model.inputs.num_bedrooms}  |  {fmr.year} data"
         )
 
+    def _refresh_fmr_display(self):
+        """Update the FMR rent display for the current bedroom selection."""
+        fmr = self._model.fmr_data
+        if fmr.year == 0:
+            return  # No FMR data loaded yet
+        fmr_key = self._model._get_fmr_key()
+        rent = fmr.get_rent_by_key(fmr_key)
+        self._dashboard.input_panel.set_fmr_rent(rent, fmr.year)
+
     # ── Zip Code ───────────────────────────────────────────────────
 
     def _on_zip_changed(self):
-        """Handle zip code entry — fetch zip info."""
+        """Handle zip code entry — fetch zip info + property tax rate."""
         zip_code = self._dashboard.input_panel.zip_code.get().strip()
         if len(zip_code) == 5 and zip_code.isdigit():
             thread = threading.Thread(
@@ -341,6 +370,10 @@ class AppController:
                 daemon=True,
             )
             thread.start()
+
+            # Fetch property tax rate for this ZIP (API Ninjas)
+            self._fetch_property_tax_async(zip_code)
+
         self._on_input_changed()
 
     def _fetch_zip_info(self, zip_code: str):
@@ -392,13 +425,7 @@ class AppController:
         The RapidAPI returns the 2-letter state code (e.g. 'LA'),
         so we match on both code and full name.
         """
-        if not self._hud_api._states_cache:
-            return ""
-        zs = zip_state.strip().upper()
-        for s in self._hud_api._states_cache:
-            if s.code.upper() == zs or s.name.lower() == zs.lower():
-                return s.name
-        return ""
+        return self._hud_api.find_state_name(zip_state)
 
     def _auto_select_county(self, county_name: str):
         """Find and select a county by name (fuzzy match)."""
@@ -421,12 +448,152 @@ class AppController:
                 return county_name
         return ""
 
+    # ── New API integrations ───────────────────────────────────────
+
+    def _fetch_mortgage_rates_async(self):
+        """Fetch current mortgage rates on startup (background)."""
+        cfg = self._config.config
+        if not cfg.api_ninjas_key:
+            return
+
+        def _fetch():
+            try:
+                rates = self._ninjas_api.get_mortgage_rates()
+                self._dashboard.after(0, self._on_mortgage_rates_loaded, rates)
+            except APIError:
+                pass  # Non-critical
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _on_mortgage_rates_loaded(self, rates):
+        """Display current mortgage rate hint."""
+        if rates.thirty_year_fixed > 0:
+            self._model.current_mortgage_rate = rates.thirty_year_fixed
+            self._dashboard.input_panel.set_rate_hint(rates.thirty_year_fixed)
+
+    def _fetch_fred_data_async(self):
+        """Fetch FRED economic data on startup (background)."""
+        cfg = self._config.config
+        if not cfg.fred_api_key:
+            return
+
+        def _fetch():
+            try:
+                rate = self._fred_api.get_current_mortgage_rate()
+                cpi = self._fred_api.get_rent_cpi_growth(5)
+                vacancy = self._fred_api.get_vacancy_rate()
+                self._dashboard.after(
+                    0, self._on_fred_data_loaded, rate, cpi, vacancy
+                )
+            except APIError:
+                pass  # Non-critical
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _on_fred_data_loaded(self, rate, cpi_growth, vacancy_rate):
+        """Store FRED data on the model for pro forma display."""
+        # If API Ninjas didn't return a rate, use FRED
+        if rate and not self._model.current_mortgage_rate:
+            self._model.current_mortgage_rate = rate
+            self._dashboard.input_panel.set_rate_hint(rate)
+
+        if cpi_growth is not None:
+            self._model.rent_cpi_growth = cpi_growth
+
+        if vacancy_rate is not None:
+            self._model.national_vacancy_rate = vacancy_rate
+
+        # Refresh display
+        self._model.recalculate()
+
+    def _fetch_property_tax_async(self, zip_code: str):
+        """Fetch property tax rate for a ZIP (API Ninjas, background)."""
+        cfg = self._config.config
+        if not cfg.api_ninjas_key:
+            return
+
+        def _fetch():
+            try:
+                tax = self._ninjas_api.get_property_tax(zip_code)
+                self._dashboard.after(
+                    0, self._on_property_tax_loaded, tax, zip_code
+                )
+            except APIError:
+                pass
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _on_property_tax_loaded(self, tax_data, zip_code: str):
+        """Auto-populate tax rate from API Ninjas."""
+        if tax_data.overall_tax_rate > 0:
+            rate_pct = tax_data.overall_tax_rate * 100
+            ip = self._dashboard.input_panel
+            # Only update if user hasn't manually changed from default
+            current = parse_float(ip.tax_rate.get(), 1.0)
+            default = self._config.config.default_tax_rate * 100
+            if abs(current - default) < 0.01:
+                ip.tax_rate.set(f"{rate_pct:.2f}")
+                self._on_input_changed()
+
+    def _fetch_income_limits_async(self, county_fips: str):
+        """Fetch HUD Income Limits for a county (background)."""
+        state_code = self._model.state_code
+        if not state_code:
+            return
+
+        def _fetch():
+            try:
+                il = self._hud_api.get_income_limits(state_code, county_fips)
+                self._dashboard.after(0, self._on_income_limits_loaded, il)
+            except APIError:
+                pass  # Non-critical
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _on_income_limits_loaded(self, il_data):
+        """Store AMI on the model for affordability calculation."""
+        if il_data.median_income > 0:
+            self._model.area_median_income = il_data.median_income
+            self._model.recalculate()
+
+    def _fetch_flood_risk_async(self, county_fips: str):
+        """Fetch OpenFEMA flood risk for a county (background)."""
+        def _fetch():
+            try:
+                risk = self._fema_api.get_flood_risk(county_fips)
+                self._dashboard.after(0, self._on_flood_risk_loaded, risk)
+            except APIError:
+                pass  # Non-critical
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _on_flood_risk_loaded(self, risk_data):
+        """Store flood risk on the model for display."""
+        self._model.flood_risk_rating = risk_data.risk_rating
+        self._model.flood_risk_score = risk_data.risk_score
+        self._model.recalculate()
+
     # ── Deal management ────────────────────────────────────────────
 
     def new_deal(self):
         """Reset to a fresh deal with defaults."""
         self._current_deal_name = None
         self._model.fmr_data = FMRData()
+        # Clear API-sourced data
+        self._model.area_median_income = None
+        self._model.flood_risk_rating = ""
+        self._model.flood_risk_score = 0.0
+        self._model.state_code = ""
+        self._county_fips_map = {}
+        self._current_county_fips = ""
+        # Clear location fields
+        ip = self._dashboard.input_panel
+        ip.state_dd.set("")
+        ip.county_dd.set("")
+        ip.county_dd.update_values([])
+        ip.zip_code.set("")
+        ip.street_address.set("")
+        ip.set_fmr_rent(0)
         self._set_defaults()
         self._update_title()
 
@@ -454,9 +621,11 @@ class AppController:
 
             # Trigger state/county cascade if state is set
             if deal.inputs.state:
+                # Preserve zip code during the cascade (state/county changes
+                # normally clear zip, but we want to keep the saved value)
+                if deal.inputs.zip_code:
+                    self._zip_driven = True
                 self._on_state_changed(deal.inputs.state)
-                # After counties load, we need to set the county and fetch FMR
-                # This is handled by scheduling after county load
                 self._pending_county = deal.inputs.county
 
             self._update_title()
@@ -479,11 +648,18 @@ class AppController:
 
     # ── API key management ─────────────────────────────────────────
 
-    def update_api_keys(self, hud_token: str, rapidapi_key: str):
+    def update_api_keys(self, hud_token: str, rapidapi_key: str,
+                        api_ninjas_key: str = "",
+                        fred_api_key: str = ""):
         """Update API keys and reinitialize services."""
-        self._config.update_api_keys(hud_token, rapidapi_key)
+        self._config.update_api_keys(
+            hud_token, rapidapi_key,
+            api_ninjas_key, fred_api_key,
+        )
         self._hud_api.update_token(hud_token)
         self._rapid_api.update_key(rapidapi_key)
+        self._ninjas_api.update_key(api_ninjas_key)
+        self._fred_api.update_key(fred_api_key)
         self._set_status("API keys updated")
         # Re-fetch states with new token
         self.initialize()

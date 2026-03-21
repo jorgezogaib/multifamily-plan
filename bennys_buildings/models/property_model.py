@@ -188,9 +188,21 @@ class PropertyModel:
         self.cash_on_cash: float = 0.0
         self.cap_rate: float = 0.0
         self.dscr: float = 0.0
+        self.debt_yield: float = 0.0
         self.grm: float = 0.0
         self.breakeven_occupancy: float = 0.0
         self.price_per_bedroom: float = 0.0
+        self.noi_per_unit: float = 0.0
+        self.expenses_per_unit: float = 0.0
+        self.rent_affordability: float = 0.0
+
+        # API-sourced data (set by controller, displayed in UI)
+        self.area_median_income: Optional[float] = None
+        self.flood_risk_rating: str = ""
+        self.flood_risk_score: float = 0.0
+        self.current_mortgage_rate: Optional[float] = None
+        self.rent_cpi_growth: Optional[float] = None
+        self.national_vacancy_rate: Optional[float] = None
 
     # --- Properties ---
 
@@ -428,6 +440,32 @@ class PropertyModel:
             self.price_per_bedroom = self.total_price / total_bedrooms
         else:
             self.price_per_bedroom = 0.0
+
+        # 28. Debt Yield = NOI / Loan Amount
+        if self.total_leverage > 0:
+            self.debt_yield = self.noi / self.total_leverage
+        else:
+            self.debt_yield = 0.0
+
+        # 29. NOI per Unit
+        if inp.num_units > 0:
+            self.noi_per_unit = self.noi / inp.num_units
+        else:
+            self.noi_per_unit = 0.0
+
+        # 31. Expenses per Unit
+        if inp.num_units > 0:
+            self.expenses_per_unit = abs(self.total_expenses) / inp.num_units
+        else:
+            self.expenses_per_unit = 0.0
+
+        # 32. Rent Affordability = annual rent / Area Median Income
+        if self.area_median_income and self.area_median_income > 0:
+            self.rent_affordability = (
+                (self.effective_rent * 12) / self.area_median_income
+            )
+        else:
+            self.rent_affordability = 0.0
 
         self._notify_listeners()
 

@@ -26,7 +26,10 @@ Benny's Buildings is a **multifamily real estate investment analyzer** built as 
 **Key capabilities:**
 - Enter property details (location, units, price, loan terms)
 - Automatically fetch Fair Market Rent (FMR) data from the HUD government API
-- Calculate 24+ financial metrics instantly as you type
+- Auto-populate property tax rates, current mortgage rates, and economic data
+- Flood/hazard risk assessment via OpenFEMA
+- Rent affordability scoring via HUD Income Limits
+- Calculate 30+ financial metrics instantly as you type
 - Save and load named property analyses ("deals") for comparison
 - Look up utility allowances for expense estimation (Louisiana data included)
 - Look up zip code information for property research
@@ -99,8 +102,9 @@ A professional financial statement laid out in 3 columns with auto-scaling fonts
 
 | Section | Fields | Good Target |
 |---------|--------|-------------|
-| **Investment Metrics** | Cap Rate, Cash on Cash Return, DSCR, Cash Flow Margin, Gross Rent Multiplier, Break-even Occupancy, Price/Bedroom | Varies (see color coding) |
+| **Investment Metrics** | Cap Rate, Cash on Cash, DSCR, Cash Flow Margin, GRM, Break-even Occupancy, Price/Bedroom, Debt Yield, NOI/Unit, Expenses/Unit, Rent Affordability | Varies (see color coding) |
 | **Cash Flow Analysis** | Net Operating Income, Less: Debt Service → Monthly Cash Flow → **Annual Cash Flow** | Positive = profitable |
+| **Market Context** | Flood risk warning, current mortgage rate hint, rent CPI growth, national vacancy rate | Informational |
 
 **Color coding:**
 - **Green** = positive/strong values
@@ -114,11 +118,12 @@ All user inputs organized in 3 collapsible sections. Only one section is open at
 #### ▼ Property Section
 | Field | How to Use |
 |-------|-----------|
+| **Address** | Street address (e.g., "123 Main St") — used for deal identification |
 | **State** | Searchable dropdown — triggers county list fetch from HUD API |
-| **County** | Searchable dropdown (populated after state selection) — triggers FMR fetch |
-| **Zip Code** | Property zip code — fetches location info from RapidAPI |
+| **County** | Searchable dropdown (populated after state selection) — triggers FMR + income limits + flood risk fetch |
+| **Zip Code** | Property zip code — auto-fills state/county, fetches property tax rate |
 | **Type** | Radio buttons: Apartment (5+), Duplex/Townhouse (<5 Units), Single Family |
-| **Bedrooms** | Dropdown: 0 BR through 5 BR — affects FMR rent lookup |
+| **Bedrooms** | Dropdown: 0 BR through 5 BR — affects FMR rent lookup (updates immediately) |
 | **# Units** | Total number of rental units in the property |
 | **$ / Unit** | Purchase price per unit |
 | **Total $ (opt)** | Optional: enter a total price directly (overrides $/unit calculation) |
@@ -268,7 +273,7 @@ If the listing price is a round number (not exactly $/unit x units):
 - The app will re-fetch county and FMR data from the API for the deal's state/county.
 
 ### Creating a New Deal
-- **New (Ctrl+N):** Resets all inputs to defaults and clears the deal name.
+- **New (Ctrl+N):** Resets all inputs to defaults, clears location fields (state, county, zip, address), and clears the deal name. Gives you a clean slate.
 
 ### Deleting a Deal
 - Open the **Load** dialog and click **Delete** next to the deal you want to remove.
@@ -281,39 +286,53 @@ Deals are saved as JSON files in `%APPDATA%\BennysBuildings\deals\`. Each file c
 
 ## 7. API Setup
 
-The app uses two external APIs. Both come pre-configured with keys from the original Excel workbook.
+The app uses five external APIs. HUD and RapidAPI come pre-configured. The others are optional — the app works without them but provides richer data when configured.
 
-### HUD API (Fair Market Rent Data)
-- **What it provides:** State list, county list, and Fair Market Rent data
+### HUD API (Fair Market Rent + Income Limits)
+- **What it provides:** State list, county list, Fair Market Rent data, Area Median Income
 - **Authentication:** Bearer token (JWT)
 - **Free registration:** https://www.huduser.gov/hudapi/public/register
-- **How to get a new token:**
-  1. Go to the registration page above
-  2. Create an account or log in
-  3. Generate a new API token
-  4. Open app Settings and paste the token
+- **Pre-configured:** Yes (token from original Excel workbook)
 
 ### RapidAPI (Zip Code Information)
 - **What it provides:** City, county, state, coordinates for a zip code
 - **Authentication:** API key in header
-- **Free tier:** Available at https://rapidapi.com/mikicode/api/us-zip-code-information
-- **How to get a new key:**
-  1. Create a RapidAPI account
-  2. Subscribe to the US Zip Code Information API (free tier)
-  3. Copy your API key from the dashboard
-  4. Open app Settings and paste the key
+- **Free tier:** https://rapidapi.com/mikicode/api/us-zip-code-information
+- **Pre-configured:** Yes
+
+### API Ninjas (Property Tax + Mortgage Rates)
+- **What it provides:** Property tax rate by ZIP code, current 30yr/15yr/5-1 ARM mortgage rates
+- **Authentication:** X-Api-Key header
+- **Free tier:** 50,000 calls/month at https://api-ninjas.com
+- **How to get a key:**
+  1. Go to https://api-ninjas.com and create a free account
+  2. Copy your API key from your profile/dashboard
+  3. Paste in Settings → "API Ninjas Key"
+
+### FRED (Federal Reserve Economic Data)
+- **What it provides:** Current mortgage rate benchmark, rent CPI growth (5yr annualized), national rental vacancy rate
+- **Authentication:** api_key query parameter
+- **Free tier:** 120 requests/minute at https://fred.stlouisfed.org
+- **How to get a key:**
+  1. Go to https://fred.stlouisfed.org/docs/api/api_key.html
+  2. Create an account and request an API key
+  3. Paste in Settings → "FRED API Key"
+
+### OpenFEMA (Flood/Hazard Risk)
+- **What it provides:** County-level flood risk score and rating from the National Risk Index
+- **Authentication:** None required (open API)
+- **Triggered by:** County selection (automatic)
 
 ### Updating API Keys in the App
 1. Click the **Settings** button (gear icon) in the title bar
-2. Paste your HUD Bearer Token in the first field
-3. Paste your RapidAPI Key in the second field
-4. Click **Save**
-5. The app will re-fetch the states list with the new token
+2. Fill in the API key fields (HUD, RapidAPI, API Ninjas, FRED)
+3. Click **Save**
+4. The app will re-fetch the states list and market data
 
 ### If API Keys Stop Working
 - **401 errors:** The token has expired or is invalid. Get a new one.
 - **Rate limiting:** The HUD API has generous limits. If throttled, wait a minute and try again.
-- **The app works without APIs:** You can still enter all values manually (skip state/county selection, enter manual rent).
+- **The app works without APIs:** You can still enter all values manually (skip state/county selection, enter manual rent). Optional APIs (API Ninjas, FRED) degrade gracefully — features just won't show data.
 
 ---
 
@@ -560,6 +579,43 @@ dscr = noi / |debt_service|
 ```
 Example: $22,396 / $14,221 = 1.57
 
+### Additional Metrics
+
+**Gross Rent Multiplier (GRM)**
+```
+grm = total_price / potential_gross_rent
+```
+Lower GRM = better value. Typically 4-8 for multifamily.
+
+**Break-even Occupancy**
+```
+breakeven_occupancy = (|total_expenses| + |debt_service|) / potential_gross_rent
+```
+The minimum occupancy needed to cover all costs. Below 85% is ideal.
+
+**Price per Bedroom**
+```
+price_per_bedroom = total_price / (bedrooms_per_unit × num_units)
+```
+
+**Debt Yield**
+```
+debt_yield = noi / total_leverage
+```
+Lender metric. Green >= 10%, Orange 8-10%, Red < 8%.
+
+**NOI per Unit / Expenses per Unit**
+```
+noi_per_unit = noi / num_units
+expenses_per_unit = |total_expenses| / num_units
+```
+
+**Rent Affordability**
+```
+rent_affordability = (effective_rent × 12) / area_median_income
+```
+Requires HUD Income Limits data. Green < 30% of AMI.
+
 ---
 
 ## 10. Troubleshooting
@@ -643,8 +699,11 @@ main.py ──→ BennysApp (app.py)
               └── AppController (controllers/app_controller.py)
                     ├── PropertyModel (models/property_model.py)
                     ├── DealManager (models/deal_manager.py)
-                    ├── HUDApiService (services/api_service.py)
-                    └── RapidApiService (services/api_service.py)
+                    ├── HUDApiService — FMR, states, counties, income limits
+                    ├── RapidApiService — zip code lookup
+                    ├── ApiNinjasService — property tax, mortgage rates
+                    ├── FREDApiService — rent CPI, vacancy, rates
+                    └── OpenFEMAService — flood/hazard risk
 ```
 
 ### Adding a New Financial Metric
@@ -797,8 +856,8 @@ def _fetch_new_data(self, param):
 
 | File | Key Classes/Functions | What It Does |
 |------|----------------------|-------------|
-| `models/data_types.py` | `State`, `County`, `FMRData`, `ZipInfo`, `UtilityAllowanceEntry`, `DealInputs`, `DealData` | All data structures used throughout the app. DealInputs holds every user-configurable field with defaults |
-| `models/property_model.py` | `PropertyModel`, `UtilityAllowanceCalculator` | The core calculation engine. PropertyModel.recalculate() computes all 24 financial metrics. UtilityAllowanceCalculator loads state JSON files and computes conditional utility allowances |
+| `models/data_types.py` | `State`, `County`, `FMRData`, `ZipInfo`, `UtilityAllowanceEntry`, `PropertyTaxData`, `MortgageRateData`, `IncomeLimitData`, `FloodRiskData`, `DealInputs`, `DealData` | All data structures used throughout the app. DealInputs holds every user-configurable field with defaults |
+| `models/property_model.py` | `PropertyModel`, `UtilityAllowanceCalculator` | The core calculation engine. PropertyModel.recalculate() computes 30+ financial metrics. UtilityAllowanceCalculator loads state JSON files and computes conditional utility allowances |
 | `models/deal_manager.py` | `DealManager` | Saves deals as JSON to %APPDATA%/BennysBuildings/deals/. Methods: save(), load(), list_deals(), delete(), exists() |
 
 ### Views (UI Components)
@@ -810,20 +869,20 @@ def _fetch_new_data(self, param):
 | `views/proforma_panel.py` | `ProFormaPanel(CTkScrollableFrame)` | 3-column auto-scaling financial statement. Uniform scaling of fonts, padding, heights, and widths. Hides scrollbar when content fits |
 | `views/input_panel.py` | `InputPanel(CTkFrame)` | Accordion layout with 3 CollapsibleSections (Property, Financials, Utilities). Only one section open at a time. Exposes callback attributes for controller wiring. get_all_inputs() / set_all_inputs() for bulk access |
 | `views/deal_dialog.py` | `SaveDealDialog(CTkToplevel)`, `LoadDealDialog(CTkToplevel)` | Modal dialogs for deal name entry and deal list browsing with load/delete buttons |
-| `views/settings_dialog.py` | `SettingsDialog(CTkToplevel)` | API key configuration with HUD token and RapidAPI key fields |
+| `views/settings_dialog.py` | `SettingsDialog(CTkToplevel)` | API key configuration with 4 fields: HUD token, RapidAPI, API Ninjas, FRED |
 
 ### Services (External Integration)
 
 | File | Key Classes | What It Does |
 |------|------------|-------------|
-| `services/api_service.py` | `HUDApiService`, `RapidApiService`, `APIError` | HTTP clients with caching. HUD: listStates (cached permanently), listCounties (cached per state), get_fmr (per county). RapidAPI: get_zip_info (cached per zip). 15s/10s timeouts |
-| `services/config_service.py` | `AppConfig`, `ConfigService` | Manages %APPDATA%/BennysBuildings/config.json. Pre-populates API keys from workbook on first run. AppConfig stores all default rates |
+| `services/api_service.py` | `TimeoutSession`, `HUDApiService`, `RapidApiService`, `ApiNinjasService`, `FREDApiService`, `OpenFEMAService`, `APIError` | HTTP clients with caching. HUD: states, counties, FMR, income limits. RapidAPI: zip lookup. API Ninjas: tax rates, mortgage rates. FRED: rent CPI, vacancy rate. OpenFEMA: flood risk. All use TimeoutSession (10-15s) |
+| `services/config_service.py` | `AppConfig`, `ConfigService` | Manages %APPDATA%/BennysBuildings/config.json. Pre-populates API keys from workbook on first run. AppConfig stores 4 API keys + all default rates |
 
 ### Controllers (Orchestration)
 
 | File | Key Classes | What It Does |
 |------|------------|-------------|
-| `controllers/app_controller.py` | `AppController` | Central coordinator. _collect_inputs() parses UI into DealInputs. _on_state_changed triggers county fetch. _on_county_changed triggers FMR fetch. All API calls threaded with .after() callbacks. Manages deal save/load lifecycle |
+| `controllers/app_controller.py` | `AppController` | Central coordinator. _collect_inputs() parses UI into DealInputs. State→County→FMR cascade with zip-driven auto-fill. County change triggers FMR + income limits + flood risk. Zip entry triggers tax rate lookup. App startup fetches mortgage rates + FRED data. All API calls threaded with .after() callbacks. Manages deal save/load lifecycle |
 
 ### Utilities
 

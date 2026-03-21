@@ -202,5 +202,7 @@ class BennysApp(ctk.CTk):
             self,
             hud_token=cfg.hud_api_token,
             rapidapi_key=cfg.rapidapi_key,
+            api_ninjas_key=cfg.api_ninjas_key,
+            fred_api_key=cfg.fred_api_key,
             on_save=self._controller.update_api_keys,
         )

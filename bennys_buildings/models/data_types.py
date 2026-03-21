@@ -5,6 +5,42 @@ from typing import Optional
 from datetime import datetime
 
 
+# ── API response types ──────────────────────────────────────────
+
+
+@dataclass
+class PropertyTaxData:
+    """Property tax rate from API Ninjas by ZIP code."""
+    overall_tax_rate: float = 0.0  # e.g., 0.0125 for 1.25%
+
+
+@dataclass
+class MortgageRateData:
+    """Current mortgage rates from API Ninjas."""
+    thirty_year_fixed: float = 0.0
+    fifteen_year_fixed: float = 0.0
+    five_one_arm: float = 0.0
+
+
+@dataclass
+class IncomeLimitData:
+    """Area Median Income from HUD Income Limits API."""
+    median_income: float = 0.0
+    county_name: str = ""
+    year: int = 0
+
+
+@dataclass
+class FloodRiskData:
+    """Flood/hazard risk from OpenFEMA National Risk Index."""
+    risk_score: float = 0.0        # 0-100
+    risk_rating: str = ""          # "Relatively Low", "Relatively Moderate", etc.
+    county_name: str = ""
+
+
+# ── Core application types ──────────────────────────────────────
+
+
 @dataclass
 class State:
     """A US state/territory from HUD API."""
@@ -88,6 +124,7 @@ class DealInputs:
     price_per_unit: float = 0.0
     manual_total_price: Optional[float] = None
     zip_code: str = ""
+    street_address: str = ""
 
     # Rates
     insurance_rate: float = 0.015

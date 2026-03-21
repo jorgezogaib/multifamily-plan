@@ -131,6 +131,13 @@ class InputPanel(ctk.CTkFrame):
     def _build_property_section(self):
         container = self._property_section.content
 
+        self.street_address = InputField(
+            container, "Address",
+            placeholder="123 Main St",
+            on_change=self._trigger_input_change,
+        )
+        self.street_address.pack(fill="x", pady=3, padx=12)
+
         self.state_dd = SearchableDropdown(
             container, "State", [],
             on_change=self._trigger_state_change,
@@ -212,6 +219,14 @@ class InputPanel(ctk.CTkFrame):
             suffix="%",
         )
         self.interest_rate.pack(fill="x", pady=2, padx=12)
+
+        self._rate_hint = ctk.CTkLabel(
+            container, text="",
+            font=("Segoe UI", 10),
+            text_color=COLORS["text_muted"],
+            anchor="e",
+        )
+        self._rate_hint.pack(fill="x", padx=14, pady=(0, 2))
 
         self.down_pct = InputField(
             container, "Down %",
@@ -397,6 +412,13 @@ class InputPanel(ctk.CTkFrame):
         else:
             self.fmr_rent_display.set_value("\u2014")
 
+    def set_rate_hint(self, rate: Optional[float]):
+        """Show current market mortgage rate as a hint."""
+        if rate and rate > 0:
+            self._rate_hint.configure(text=f"Current avg: {rate:.2f}%")
+        else:
+            self._rate_hint.configure(text="")
+
     def get_all_inputs(self) -> dict:
         """Collect all current input values as a dict."""
         return {
@@ -408,6 +430,7 @@ class InputPanel(ctk.CTkFrame):
             "price_per_unit": self.price_per_unit.get(),
             "manual_total_price": self.manual_total.get(),
             "zip_code": self.zip_code.get(),
+            "street_address": self.street_address.get(),
             "insurance_rate": self.insurance_rate.get(),
             "tax_rate": self.tax_rate.get(),
             "loan_term": self.loan_term.get(),
@@ -444,6 +467,7 @@ class InputPanel(ctk.CTkFrame):
             if inputs.manual_total_price else ""
         )
         self.zip_code.set(inputs.zip_code)
+        self.street_address.set(inputs.street_address)
         self.insurance_rate.set(f"{inputs.insurance_rate * 100:g}")
         self.tax_rate.set(f"{inputs.tax_rate * 100:g}")
         self.loan_term.set(str(inputs.loan_term))

@@ -15,7 +15,8 @@ class AppConfig:
     """Application configuration."""
     hud_api_token: str = ""
     rapidapi_key: str = ""
-
+    api_ninjas_key: str = ""
+    fred_api_key: str = ""
     # Default rates (used when creating a new deal)
     default_closing_cost_rate: float = 0.02
     default_down_payment_rate: float = 0.25
@@ -109,10 +110,14 @@ class ConfigService:
     def app_dir(self) -> Path:
         return self._app_dir
 
-    def update_api_keys(self, hud_token: str, rapidapi_key: str):
+    def update_api_keys(self, hud_token: str, rapidapi_key: str,
+                        api_ninjas_key: str = "",
+                        fred_api_key: str = ""):
         """Update API keys and save."""
         self._config.hud_api_token = hud_token
         self._config.rapidapi_key = rapidapi_key
+        self._config.api_ninjas_key = api_ninjas_key
+        self._config.fred_api_key = fred_api_key
         self.save()
 
     def has_api_keys(self) -> bool:

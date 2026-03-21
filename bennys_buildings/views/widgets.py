@@ -337,6 +337,7 @@ class SearchableDropdown(ctk.CTkFrame):
         self._selected: str = ""
         self._popup: Optional[ctk.CTkToplevel] = None
         self._bound_ids: list[tuple] = []  # (widget, event, bind_id)
+        self._suppress_reopen: bool = False  # Prevents FocusIn reopening after select
 
         self.label = ctk.CTkLabel(
             self,
@@ -403,6 +404,8 @@ class SearchableDropdown(ctk.CTkFrame):
             self._show_popup()
 
     def _show_popup(self):
+        if self._suppress_reopen:
+            return
         if self._popup and self._popup.winfo_exists():
             return
         if not self._values:
@@ -411,7 +414,10 @@ class SearchableDropdown(ctk.CTkFrame):
         self._popup = ctk.CTkToplevel(self)
         self._popup.overrideredirect(True)
         self._popup.configure(fg_color=COLORS["bg_card"])
-        self._popup.attributes("-topmost", True)
+
+        # Tie popup to parent window — hides when app loses focus
+        root = self.winfo_toplevel()
+        self._popup.transient(root)
 
         # Position below the entry
         self._entry.update_idletasks()
@@ -428,7 +434,11 @@ class SearchableDropdown(ctk.CTkFrame):
         )
         self._listbox.pack(fill="both", expand=True, padx=1, pady=1)
 
-        self._populate_list(self._entry.get())
+        # If entry shows the current selection, show all options (not filtered)
+        filter_text = self._entry.get()
+        if filter_text == self._selected:
+            filter_text = ""
+        self._populate_list(filter_text)
 
         # Bind global click to dismiss popup when clicking outside
         root = self.winfo_toplevel()
@@ -447,6 +457,11 @@ class SearchableDropdown(ctk.CTkFrame):
         bid4 = self._entry.bind("<Escape>", lambda e: self._hide_popup(),
                                 add="+")
         self._bound_ids.append((self._entry, "<Escape>", bid4))
+
+        # Close when app window loses focus (switching to another app)
+        bid5 = root.bind("<Deactivate>", lambda e: self._hide_popup(),
+                         add="+")
+        self._bound_ids.append((root, "<Deactivate>", bid5))
 
     def _on_root_click(self, event):
         """Close popup if click is outside the dropdown and popup."""
@@ -538,9 +553,15 @@ class SearchableDropdown(ctk.CTkFrame):
         self._selected = value
         self._entry.delete(0, "end")
         self._entry.insert(0, value)
+        # Suppress FocusIn from immediately reopening the popup
+        self._suppress_reopen = True
         self._hide_popup()
+        self.after(150, self._clear_suppress)
         if self._on_change:
             self._on_change(value)
+
+    def _clear_suppress(self):
+        self._suppress_reopen = False
 
     def get(self) -> str:
         return self._selected or self._entry.get()

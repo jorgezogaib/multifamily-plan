@@ -1,6 +1,6 @@
 # Benny's Buildings — AI Development Context
 
-Multifamily real estate investment analyzer. Desktop app (CustomTkinter, dark theme) that replicates an Excel workbook's 24 financial formulas with live HUD API integration for Fair Market Rent data, deal save/load, and utility allowance calculations.
+Multifamily real estate investment analyzer. Desktop app (CustomTkinter, dark theme) that replicates an Excel workbook's 30+ financial formulas with live API integrations (HUD FMR, API Ninjas tax/rates, FRED economic data, OpenFEMA flood risk), deal save/load, and utility allowance calculations.
 
 ## Quick Start
 
@@ -42,8 +42,9 @@ main.py                          Entry point. Adds project root to sys.path, cre
 app.py                           Root CTk window. Title bar, status bar, keyboard shortcuts, icon loading, menu actions
 models/
   data_types.py                  Dataclasses: State, County, FMRData, ZipInfo, UtilityAllowanceEntry,
+                                   PropertyTaxData, MortgageRateData, IncomeLimitData, FloodRiskData,
                                    DealInputs (all user inputs), DealData (saved deal wrapper)
-  property_model.py              PropertyModel (24 formulas, recalculate()), UtilityAllowanceCalculator
+  property_model.py              PropertyModel (30+ formulas, recalculate()), UtilityAllowanceCalculator
   deal_manager.py                DealManager — save/load/list/delete JSON deal files
 views/
   widgets.py                     COLORS dict (17 colors), FONTS dict (8 styles), SectionFrame,
@@ -56,11 +57,14 @@ views/
                                    Col1: Investment Summary + Financing + Capital Requirements.
                                    Col2: Operating Statement + NOI. Col3: Metrics + Cash Flow
   input_panel.py                 Accordion layout with 3 CollapsibleSections (Property, Financials,
-                                   Utilities). Single-open accordion behavior. 8 dropdowns + 14 fields
+                                   Utilities). Single-open accordion behavior. 8 dropdowns + 14 fields.
+                                   Property order: Address → State → County → Zip Code
   deal_dialog.py                 SaveDealDialog (name entry) + LoadDealDialog (scrollable list)
-  settings_dialog.py             API key entry form (HUD token + RapidAPI key)
+  settings_dialog.py             API key entry form (HUD, RapidAPI, API Ninjas, FRED — 4 fields)
 services/
-  api_service.py                 HUDApiService (3 endpoints), RapidApiService (1 endpoint), APIError class
+  api_service.py                 TimeoutSession, HUDApiService (FMR + Income Limits), RapidApiService,
+                                   ApiNinjasService (tax rates + mortgage rates), FREDApiService
+                                   (rent CPI, vacancy, rates), OpenFEMAService (flood risk), APIError
   config_service.py              AppConfig dataclass, ConfigService — persists to %APPDATA%/BennysBuildings/
 controllers/
   app_controller.py              Orchestrator: wires callbacks, parses inputs, manages cascading
@@ -93,6 +97,7 @@ self.on_state_changed: Optional[Callable] = None
 self.on_county_changed: Optional[Callable] = None
 self.on_input_changed: Optional[Callable] = None
 self.on_zip_changed: Optional[Callable] = None
+self.on_ua_toggled: Optional[Callable] = None
 
 # In AppController.__init__():
 ip = dashboard.input_panel
@@ -100,6 +105,7 @@ ip.on_state_changed = self._on_state_changed
 ip.on_county_changed = self._on_county_changed
 ip.on_input_changed = self._on_input_changed
 ip.on_zip_changed = self._on_zip_changed
+ip.on_ua_toggled = self._on_ua_toggled
 ```
 
 Each input widget triggers these via helper methods (`_trigger_input_change`, etc.) that null-check before calling.
@@ -186,6 +192,13 @@ The `PropertyModel.recalculate()` method computes values in this exact order bec
 24. cash_on_cash           = annual_cashflow / total_capital_required     ← depends on #9,21
 25. cap_rate               = NOI / total_price
 26. dscr                   = NOI / |debt_service|
+27. grm                    = total_price / PGR
+28. breakeven_occupancy    = (|expenses| + |debt_service|) / PGR
+29. price_per_bedroom      = total_price / (bedrooms × units)
+30. debt_yield             = NOI / total_leverage
+31. noi_per_unit           = NOI / num_units
+32. expenses_per_unit      = |total_expenses| / num_units
+33. rent_affordability     = (effective_rent × 12) / area_median_income
 ```
 
 **Key dependency:** `reserve_account` (#8) depends on `debt_service` (#7), which depends on `total_leverage` (#4). This means down_payment must be computed before debt_service, and debt_service before reserve. This is why the order matters.
@@ -194,16 +207,24 @@ The `PropertyModel.recalculate()` method computes values in this exact order bec
 
 ## API Integration
 
-| Endpoint | Auth | Cache | Trigger |
-|----------|------|-------|---------|
-| `GET huduser.gov/hudapi/public/fmr/listStates` | Bearer token | Session-permanent | App startup |
-| `GET huduser.gov/hudapi/public/fmr/listCounties/{stateCode}` | Bearer token | Per state code | State dropdown change |
-| `GET huduser.gov/hudapi/public/fmr/data/{countyFIPS}` | Bearer token | None | County dropdown change |
-| `GET us-zip-code-information.p.rapidapi.com/?zipcode={zip}` | X-RapidAPI-Key | Per zip code | Zip entry (5 digits, on blur/enter) |
+| Service | Endpoint | Auth | Cache | Trigger |
+|---------|----------|------|-------|---------|
+| **HUD FMR** | `GET huduser.gov/hudapi/public/fmr/listStates` | Bearer token | Session | App startup |
+| **HUD FMR** | `GET huduser.gov/hudapi/public/fmr/listCounties/{stateCode}` | Bearer token | Per state | State change |
+| **HUD FMR** | `GET huduser.gov/hudapi/public/fmr/data/{countyFIPS}` | Bearer token | None | County change |
+| **HUD IL** | `GET huduser.gov/hudapi/public/il/{state}/{countyFIPS}` | Bearer token | None | County change |
+| **RapidAPI** | `GET us-zip-code-information.p.rapidapi.com/?zipcode={zip}` | X-RapidAPI-Key | Per zip | Zip entry |
+| **API Ninjas** | `GET api.api-ninjas.com/v1/propertytax?zip={zip}` | X-Api-Key | Per zip | Zip entry |
+| **API Ninjas** | `GET api.api-ninjas.com/v1/mortgagerate` | X-Api-Key | 24h | App startup |
+| **FRED** | `GET api.stlouisfed.org/fred/series/observations` | api_key param | 24h | App startup |
+| **OpenFEMA** | `GET hazards.fema.gov/nri/.../query` | None | Per county | County change |
 
-**Cascading flow:** State → `listCounties` → populate County dropdown → County → `data/{fips}` → FMR rent → recalculate.
+**Cascading flows:**
+- State → Counties → County → FMR + Income Limits + Flood Risk
+- Zip → City/State auto-fill → State cascade + Property Tax lookup
+- App startup → Mortgage Rates + FRED data (rent CPI growth, vacancy rate)
 
-API keys are pre-populated from the original Excel workbook. User can update via Settings dialog. Stored in config.json.
+All API services use `TimeoutSession` (custom `requests.Session` subclass) with per-service timeouts (10-15s). API keys configured via Settings dialog, stored in `config.json`.
 
 ## How to Add Features
 
@@ -234,10 +255,11 @@ API keys are pre-populated from the original Excel workbook. User can update via
 3. The app auto-discovers new state files at startup — no code changes needed
 
 ### Adding a new API endpoint
-1. Add the method to `HUDApiService` or `RapidApiService` in `services/api_service.py`
-2. Follow the existing pattern: `try/except requests.RequestException → raise APIError`
+1. Add the method to an existing service class (or create a new one) in `services/api_service.py`
+2. Use `TimeoutSession` for HTTP requests. Follow the pattern: `try/except requests.RequestException → raise APIError`
 3. Add a threading wrapper in `controllers/app_controller.py` (thread + `.after()` callback)
-4. Connect to a UI trigger (dropdown change, button click, etc.)
+4. If a new API key is needed: add to `AppConfig`, `SettingsDialog`, `AppController.update_api_keys()`
+5. Connect to a UI trigger (dropdown change, zip entry, app startup, etc.)
 
 ## Testing
 
@@ -257,6 +279,10 @@ Run all tests: `python tests/test_property_model.py && python tests/test_financi
 2. **Manual override fields** (Total Price, Manual Rent) use `None` to indicate "not set" — empty string in the UI maps to `None`, which falls through to the calculated value.
 3. **Expenses are negative** throughout the model. Total Expenses is a negative sum. NOI = EGR − |Total Expenses|.
 4. **The `_pending_county` attribute** in AppController handles the async cascade during deal loading. When a deal is loaded, the state change triggers an async county fetch. `_pending_county` stores the saved county name so that `_on_counties_loaded()` can auto-select it and trigger the FMR fetch once the county list arrives.
-5. **CustomTkinter CTkComboBox** is set to `state="readonly"` for all dropdowns to prevent free-text entry.
+5. **SearchableDropdown** shows all options when the popup opens with the current selection text (not filtered). This prevents the dropdown from appearing "locked" after a value is programmatically set.
 6. **The HUD API token** is a long-lived JWT (expires ~2034) but should still be user-configurable via Settings.
 7. **Utility allowance state detection** uses 2-letter state codes matching filenames in `data/utility_allowances/`. The state code comes from `model.state_code`, set by the controller after HUD API lookup.
+8. **Deal loading preserves zip codes** by setting `_zip_driven = True` before the state/county cascade. Without this, `_on_state_changed` and `_on_county_changed` would clear the zip during the cascade.
+9. **New Deal clears location fields** — state, county, zip, address, and FMR display are all reset. The `state_code`, `county_fips_map`, and related controller state are also cleared.
+10. **Bedroom changes refresh FMR display** — `_on_input_changed` calls `_refresh_fmr_display()` so the FMR rent label updates to reflect the new bedroom count's FMR rate.
+11. **`requests.Session` does NOT honor `session.timeout`** as an attribute. All services use `TimeoutSession`, a custom subclass that injects default timeouts into every request.

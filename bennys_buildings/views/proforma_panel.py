@@ -243,10 +243,13 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         self._add_metric_line("cap_rate", "Cap Rate", R)
         self._add_metric_line("coc", "Cash on Cash Return", R)
         self._add_metric_line("dscr", "DSCR", R)
+        self._add_metric_line("debt_yield", "Debt Yield", R)
         self._add_metric_line("cf_margin", "Cash Flow Margin", R)
         self._add_metric_line("grm", "Gross Rent Multiplier", R)
         self._add_metric_line("breakeven_occ", "Break-even Occupancy", R)
         self._add_metric_line("price_per_br", "Price / Bedroom", R)
+        self._add_metric_line("noi_per_unit", "NOI / Unit", R)
+        self._add_metric_line("rent_afford", "Rent Affordability", R)
 
         self._add_section_header("CASH FLOW ANALYSIS", R)
         self._add_line("cf_noi", "Net Operating Income", R)
@@ -254,6 +257,12 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         self._add_single_separator(R)
         self._add_line("monthly_cf", "Monthly Cash Flow", R)
         self._add_total_line("annual_cf", "Annual Cash Flow", R)
+
+        # ── Risk & Market Context (shown when data available) ──
+        self._add_section_header("MARKET CONTEXT", R)
+        self._add_detail("flood_risk", "", R)
+        self._add_detail("rent_growth_ctx", "", R)
+        self._add_detail("vacancy_ctx", "", R)
 
     # ── Layout helpers — rows auto-size from content ──
 
@@ -626,3 +635,69 @@ class ProFormaPanel(ctk.CTkScrollableFrame):
         self._set("price_per_br",
                   format_currency(model.price_per_bedroom),
                   COLORS["accent_orange"])
+
+        # Debt Yield
+        dy = model.debt_yield
+        if dy >= 0.10:
+            dy_color = COLORS["positive"]
+        elif dy >= 0.08:
+            dy_color = COLORS["accent_orange"]
+        else:
+            dy_color = COLORS["negative"]
+        self._set("debt_yield", format_percent(dy, 2), dy_color)
+
+        # NOI / Unit
+        if model.noi_per_unit != 0:
+            noi_u_color = (COLORS["positive"] if model.noi_per_unit >= 0
+                          else COLORS["negative"])
+            self._set("noi_per_unit",
+                      format_currency(model.noi_per_unit), noi_u_color)
+        else:
+            self._set("noi_per_unit", "\u2014", COLORS["text_muted"])
+
+        # Rent Affordability (annual rent as % of AMI)
+        ra = model.rent_affordability
+        if ra > 0:
+            if ra <= 0.30:
+                ra_color = COLORS["positive"]
+            elif ra <= 0.40:
+                ra_color = COLORS["accent_orange"]
+            else:
+                ra_color = COLORS["negative"]
+            self._set("rent_afford", format_percent(ra, 1), ra_color)
+        else:
+            self._set("rent_afford", "\u2014", COLORS["text_muted"])
+
+        # ── Market Context ──
+        # Flood risk
+        if model.flood_risk_rating:
+            risk = model.flood_risk_rating
+            if "High" in risk or "Very High" in risk:
+                risk_color = COLORS["negative"]
+                risk_text = f"Flood Risk: {risk} \u26a0"
+            elif "Moderate" in risk:
+                risk_color = COLORS["warning"]
+                risk_text = f"Flood Risk: {risk}"
+            else:
+                risk_color = COLORS["positive"]
+                risk_text = f"Flood Risk: {risk}"
+            self._set("flood_risk", risk_text, risk_color)
+        else:
+            self._set("flood_risk", "")
+
+        # CPI Rent Growth
+        if model.rent_cpi_growth is not None:
+            self._set("rent_growth_ctx",
+                      f"Avg Rent Growth: "
+                      f"{format_percent(model.rent_cpi_growth, 1)}/yr (5yr CPI)")
+        else:
+            self._set("rent_growth_ctx", "")
+
+        # National Vacancy
+        if model.national_vacancy_rate is not None:
+            self._set("vacancy_ctx",
+                      f"National Vacancy: "
+                      f"{format_percent(model.national_vacancy_rate, 1)}")
+        else:
+            self._set("vacancy_ctx", "")
+
